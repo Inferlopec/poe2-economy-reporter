@@ -1,3 +1,4 @@
+import { demoItemNames } from "./demo-names.js";
 import { configure } from "./config.js";
 import { activeSources, bossIds, ingest } from "./market.js";
 import { emptyHistory, HOUR, stash } from "./model.js";
@@ -43,7 +44,7 @@ export function demo(overrides: unknown = {}) {
       const lines = ids.map((id, i) => ({
         id,
         itemId: id,
-        name: demoName(id),
+        name: demoName(id, source),
         ...(isStash
           ? { variant: i === 0 ? "High roll" : "Standard", corrupted: i === 10 }
           : { corrupted: false }),
@@ -68,7 +69,7 @@ export function demo(overrides: unknown = {}) {
           core: {
             primary: "divine",
             rates: { exalted: 500, chaos: 10 },
-            items: ids.map((id) => ({ id, name: demoName(id) })),
+            items: ids.map((id) => ({ id, name: demoName(id, source) })),
           },
           lines,
         },
@@ -79,7 +80,7 @@ export function demo(overrides: unknown = {}) {
   return { c, h, now };
 }
 
-function demoName(id: string): string {
+function demoName(id: string, source: string): string {
   const names: Record<string, string> = {
     divine: "Divine Orb",
     exalted: "Exalted Orb",
@@ -97,9 +98,16 @@ function demoName(id: string): string {
     wisdom: "Scroll of Wisdom",
     transmute: "Orb of Transmutation",
     aug: "Orb of Augmentation",
+    "an-audience-with-the-king": "An Audience with the King",
     "kulemaks-invitation": "Kulemak's Invitation",
     "ravens-reflection": "Raven's Reflection",
   };
+  const examples = demoItemNames[source];
+  if (examples && id.startsWith(source.toLowerCase() + "-")) {
+    const index = Number(id.slice(source.length + 1));
+    if (Number.isInteger(index) && index >= 0)
+      return examples[index % examples.length]!;
+  }
   return (
     names[id] ??
     id

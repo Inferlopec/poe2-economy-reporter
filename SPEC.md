@@ -4,7 +4,7 @@
 
 One instance sends an English-language daily Path of Exile 2 economy report and limited significant alerts to one Gryt channel. Source: poe.ninja. One Node.js process, one container, one persistent volume at `/app/data`. No inbound ports, database, external scheduler, LLM, bot SDK, plugin, web UI, chat commands, trading advice, item appraisal or farming-profit estimates.
 
-The review decisions below are accepted. MVP implementation was authorized in the implementation session on 2026-11-18. Application, commands, Docker/Compose and CI now accompany this specification; version 0.1.0 release preparation covers local artifacts and release automation. External publication and real webhook sends still require authorization.
+The review decisions below are accepted. MVP implementation was authorized in the implementation session on 2026-11-18. Application, commands, Docker/Compose and CI now accompany this specification; version 0.1.1 updates report presentation without changes to market analysis, filtering, scheduling or delivery. External publication and real webhook sends still require authorization.
 
 ## Source classification
 
@@ -101,6 +101,8 @@ Default 09:00 Europe/Riga, once per local calendar day after fresh complete data
 - Separate top 10 for each of the four item groups, plus a dedicated top 10 Boss Fragments/access-items section. Sort by current Div price descending, then stable ID.
 - Each row: name/variant, price, signed 24h change or `—`.
 - Boss Fragments gets this expensive ranking and automatic alerts; no additional daily gainers/losers section is required.
+
+Presentation uses one Markdown description card per movement category, containing both **Gainers** and **Losers** sections; oversized categories may continue onto labeled cards. Rows put the colored movement marker and bold signed percentage first, followed by the item name and compact price. Each item category has its own icon, human-readable title and accent color, shared by rankings and alerts. Currency uses the same compact numbers and movement styling; group alerts describe the affected fraction rather than implying an aggregate price change. Presentation does not change item selection, tie-breaking, thresholds, source eligibility or delivery semantics.
 
 Three logical blocks, up to 90 item-ranking rows plus three fixed pairs and ten currency rows. Physical cards/messages may differ: split at group boundaries or labeled continuation sections, number parts, preserve ordering and all eligible rows. Never silently truncate rankings or names.
 

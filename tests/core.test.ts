@@ -303,11 +303,14 @@ test("all rankings and split preserve rows; currency stays separate", () => {
   p.forEach(validate);
   assert.ok(p.length > 1);
   const text = JSON.stringify(p);
-  assert.ok(text.includes("boss_fragments"));
+  assert.ok(text.includes("Boss Fragments"));
   assert.ok(text.includes("Most expensive"));
   assert.ok(!text.includes("transmute:"));
   const cards = p.flatMap((p) => p.cards!);
-  assert.equal(cards.filter((x) => x.title?.includes("Gainers")).length, 4);
+  assert.equal(
+    cards.filter((x) => x.title?.includes("Market movements")).length,
+    4,
+  );
   assert.equal(
     cards.filter((x) => x.title?.includes("Most expensive")).length,
     5,
@@ -605,9 +608,9 @@ test("check and stored preview are read-only and never contact Gryt", async () =
 test("currency anchor ratios use the pair, independent of Div-price change", () => {
   const { h, c, now } = demo();
   const text = currencyCard(h, c, now).description!;
-  assert.match(text, /divine\/exalted: 500\.00/);
-  assert.match(text, /chaos\/exalted: 50\.00/);
-  assert.match(text, /mirror\/divine: 800\.00/);
+  assert.match(text, /Divine \/ Exalted\*\* — 500 Ex per Div/);
+  assert.match(text, /Chaos \/ Exalted\*\* — 50 Ex per Chaos/);
+  assert.match(text, /Mirror \/ Divine\*\* — 800 Div per Mirror/);
 });
 test("report timer can publish between refreshes without advancing alert evidence", async () => {
   const { h, c, now } = demo();
@@ -777,16 +780,18 @@ test("selected Fragments support top-ten ranking and a confirmed group alert wit
   assert.equal(group.count, 14);
   const cards = report(h, config, now).flatMap((p) => p.cards!);
   const ranking = cards.find(
-    (card) => card.title === "boss_fragments — Most expensive",
+    (card) => card.title === "🗝️ Boss Fragments — Most expensive",
   )!;
   const expected = selected
     .sort((a, b) => b.price - a.price || a.key.localeCompare(b.key))
     .slice(0, 10);
   const rows = ranking
     .description!.split("\n")
-    .filter((line) => line.includes(" Div ("));
+    .filter((line) => /^\*\*\d+\.\*\*/.test(line));
   assert.equal(rows.length, 10);
-  expected.forEach((o, i) => assert.ok(rows[i]!.startsWith(o.name + ":")));
+  expected.forEach((o, i) =>
+    assert.ok(rows[i]!.startsWith(`**${i + 1}.** ${o.name} —`)),
+  );
 });
 
 test("built-in membership updates invalidate old report plans and excluded history", async () => {

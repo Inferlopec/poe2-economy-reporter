@@ -68,6 +68,7 @@ export interface History {
   observations: Observation[];
 }
 export interface Card {
+  color?: string | number;
   title?: string;
   description?: string;
   fields?: { name: string; value: string; inline?: boolean }[];

@@ -4,7 +4,7 @@ import { mkdtemp, readFile, readdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { showcase, sendShowcase } from "../dist/showcase.js";
-import { validate } from "../dist/format.js";
+import { categoryStyles, validate } from "../dist/format.js";
 import { bossIds } from "../dist/market.js";
 import { demo } from "../dist/demo.js";
 import { main } from "../dist/cli.js";
@@ -64,16 +64,16 @@ test("alert cases render both directions for all groups and preserve three combi
     ])
       assert.ok(
         scenario.messages.some((p) =>
-          p.cards[0].description.includes(group + " / "),
+          p.cards[0].title.includes(categoryStyles[group].name),
         ),
       );
     const text = JSON.stringify(scenario.messages);
     if (id.startsWith("item-"))
-      assert.ok(text.includes(id.endsWith("up") ? "+50.0%" : "-50.0%"));
+      assert.ok(text.includes(id.endsWith("up") ? "+50%" : "−50%"));
     if (id.startsWith("group-"))
       assert.ok(text.includes(id.endsWith("up") ? "moved up" : "moved down"));
     if (id === "combined")
-      assert.equal((text.match(/2\.000 → 3\.000/g) || []).length, 15);
+      assert.equal((text.match(/2 Div → 3 Div/g) || []).length, 15);
   }
 });
 
@@ -81,10 +81,12 @@ test("full daily report fills all rankings and Fragments case shows the complete
   const daily = showcase("daily").cases[0];
   const cards = daily.messages.flatMap((p) => p.cards);
   const rankings = cards.filter((c) =>
-    /Gainers|Losers|Most expensive/.test(c.title),
+    /Market movements|Most expensive/.test(c.title),
   );
   const rows = rankings.flatMap((c) =>
-    c.description.split("\n").filter((line) => /: .* (Div|Ex) \(/.test(line)),
+    c.description
+      .split("\n")
+      .filter((line) => /^[🟩🟥]|^\*\*\d+\.\*\*/u.test(line)),
   );
   assert.equal(rows.length, 90);
   assert.ok(JSON.stringify(daily).includes("High roll"));

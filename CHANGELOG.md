@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.1 — 2026-11-18
+
+Report presentation improvements; market analysis, filtering, scheduling and delivery behavior are unchanged.
+
+- Combine gainers and losers in one Markdown card per category.
+- Add distinct category icons, human-readable names and accent colors shared by movements, rankings and intermediate alerts.
+- Use colored movement markers, bold signed percentages and compact prices without trailing zeros; clarify currency pair units and alert baselines/windows.
+- Escape external item names as Markdown text and preserve styling, Unicode and all rows when splitting oversized cards.
+- Replace generic demo labels with realistic examples from reviewed API fixtures, preserving synthetic identities, prices and activity.
+- Verify all 13 demo scenarios (47 physical messages) and add formatter regressions; live Gryt delivery/rendering is not part of automated verification.
+- Publish image `ghcr.io/inferlopec/poe2-economy-reporter:0.1.1` and update `latest` for Linux/amd64.
+
+### Upgrade from 0.1.0
+
+Change the image tag in your existing `compose.yaml` to `0.1.1`, run `docker compose pull`, then `docker compose up -d`. Preserve `.env`, optional YAML configuration and the existing data volume/project name. No configuration or state migration is required. Previously prepared immutable report parts retain their original payload.
+
 ## 0.1.0 — 2026-11-18
 
 First MVP for self-hosted PoE2 economy reports in one Gryt channel.

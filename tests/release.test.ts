@@ -21,11 +21,11 @@ test("release guard accepts the coordinated release version", () => {
 });
 for (const tag of [
   "v0.0.0",
-  "v0.1.1",
-  "v0.1.0-rc.1",
-  "0.1.0",
-  "v0.1.0-invalid",
-  "v00.1.0",
+  `v${VERSION.split(".").slice(0, 2).join(".")}.${Number(VERSION.split(".")[2]) + 1}`,
+  `v${VERSION}-rc.1`,
+  VERSION,
+  `v${VERSION}-invalid`,
+  `v0${VERSION}`,
 ])
   test(`release guard rejects ${tag} before publishing`, () => {
     const result = spawnSync(
