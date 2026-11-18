@@ -1,0 +1,15 @@
+{
+  "name": "poe2-economy-reporter",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Self-hosted PoE2 economy reports for Gryt; documentation and tooling only.",
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=11 <12"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "7.0.2"
+  }
+}

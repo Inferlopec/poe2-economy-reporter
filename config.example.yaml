@@ -1,0 +1,76 @@
+# Planned MVP configuration. No application/parser exists yet.
+# These are the defaults. Copy to config.yaml only if you need overrides.
+# Keep GRYT_WEBHOOK_URL in the environment, never in YAML.
+league: auto
+# Omit timezone to let environment TZ take effect.
+timezone: Europe/Riga
+refresh_minutes: 60
+
+# Known API source types to omit intentionally. Currency cannot be disabled.
+# Disabled sources are not fetched; affected report sections disclose omissions.
+sources:
+  disabled: []
+
+# Optional item rules applied after the built-in mapping, before activity filters.
+# Empty by default. Each rule has source, id and group (null means exclude).
+# For exchange sources, id is line.id; for stash sources, id is itemId and
+# the rule applies to all published variants without merging their identities.
+# Example exclusion using an ID verified in the review:
+# classification:
+#   overrides:
+#     - source: Ritual
+#       id: an-audience-with-the-king
+#       group: null
+# To include it as a boss-access item, use group: boss_fragments instead,
+# after confirming its ID/purpose in your selected league.
+classification:
+  overrides: []
+
+freshness:
+  max_unchanged_hours: 2
+
+daily_report:
+  time: "09:00"
+  top_movers: 5
+  top_expensive: 10
+  # Boss Fragments has an expensive ranking, not daily movers.
+  categories: [socketable, lineage_supports, crafting, uniques, boss_fragments]
+
+currency:
+  # Additional currency rows; the three fixed pairs are separate.
+  top_by_volume: 10
+  # Lists replace defaults: keep these IDs when adding exclusions.
+  excluded_ids: [transmute, aug]
+
+liquidity:
+  # Turnover in Div, NOT item units, trades/hour or daily volume.
+  exchange_min_volume_divine:
+    Currency: 20
+    Runes: 10
+    SoulCores: 10
+    Idols: 10
+    LineageSupportGems: 10
+    Essences: 5
+    Ritual: 20
+    Breach: 5
+    Delirium: 5
+  # Boss threshold overrides its containing source's threshold.
+  boss_fragments_min_volume_divine: 10
+  # Listings, not completed sales; all eight unique sources.
+  uniques_min_listings: 30
+
+alerts:
+  enabled: true
+  max_per_day: 3
+  max_items_per_message: 3
+  confirmation_checks: 2
+  cooldown_hours: 12
+  item:
+    window_hours: 6
+    min_change_percent: 25
+    min_change_divine: 0.5
+  category:
+    window_hours: 24
+    min_change_percent: 15
+    min_affected_percent: 30
+    min_eligible_items: 10
