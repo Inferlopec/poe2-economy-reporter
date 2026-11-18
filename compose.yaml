@@ -1,0 +1,15 @@
+services:
+  reporter:
+    image: ghcr.io/inferlopec/poe2-economy-reporter:0.1.0
+    restart: unless-stopped
+    environment:
+      GRYT_WEBHOOK_URL: ${GRYT_WEBHOOK_URL:-}
+      GRYT_TEST_WEBHOOK_URL: ${GRYT_TEST_WEBHOOK_URL:-}
+      TZ: ${TZ:-Europe/Riga}
+    volumes:
+      - reporter-data:/app/data
+      # Uncomment after creating config.yaml:
+      # - ./config.yaml:/app/config.yaml:ro
+    stop_grace_period: 45s
+volumes:
+  reporter-data:

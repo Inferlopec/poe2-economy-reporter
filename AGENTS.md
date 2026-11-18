@@ -30,4 +30,4 @@ PoE2 Economy Reporter is a small self-hosted service that posts daily market rep
 - Ship a non-root Docker image, Compose example, `.env.example`, optional `config.example.yaml`, and a short README.
 - GitHub Actions: verify/build on changes; publish versioned GHCR images and `latest` on release tags. Do not publish, push or send real webhook messages without authorization.
 - Document any necessary deviation from the specification before implementing it.
-- Current authorized scope is documentation and environment preparation only. Start MVP application, Docker/Compose and CI implementation in a separately authorized session. Preserve the accepted decisions in `SPEC.md`, including currency-only grouping, Boss Fragments alerts, conservative freshness and configurable activity filters.
+- MVP application, Docker/Compose and CI implementation was explicitly authorized by the user in the implementation session. External publication and real webhook sends still require authorization. Preserve the accepted decisions in `SPEC.md`, including currency-only grouping, Boss Fragments alerts, conservative freshness and configurable activity filters.

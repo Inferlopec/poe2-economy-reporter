@@ -1,4 +1,4 @@
-# Planned MVP configuration. No application/parser exists yet.
+# Optional MVP configuration. Omitted keys retain built-in defaults.
 # These are the defaults. Copy to config.yaml only if you need overrides.
 # Keep GRYT_WEBHOOK_URL in the environment, never in YAML.
 league: auto

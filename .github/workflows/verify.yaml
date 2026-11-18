@@ -1,0 +1,24 @@
+name: Verify
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm run preview -- --demo
+      - run: npm run preview -- --demo --all
+      - run: docker build -t reporter:test .
+      - run: docker run --rm --network none reporter:test preview --demo
+      - run: docker run --rm --network none reporter:test preview --demo --all

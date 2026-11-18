@@ -1,8 +1,8 @@
 {
   "name": "poe2-economy-reporter",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
-  "description": "Self-hosted PoE2 economy reports for Gryt; documentation and tooling only.",
+  "description": "Self-hosted PoE2 economy reports for Gryt",
   "type": "module",
   "engines": {
     "node": ">=24 <25",
@@ -10,6 +10,21 @@
   },
   "devDependencies": {
     "@types/node": "24.19.2",
+    "@types/proper-lockfile": "^4.1.4",
     "typescript": "7.0.2"
+  },
+  "dependencies": {
+    "proper-lockfile": "^4.1.2",
+    "yaml": "^2.9.1"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "test": "npm run build && node --experimental-strip-types --test tests/*.test.ts",
+    "start": "node dist/cli.js",
+    "check": "node dist/cli.js check",
+    "preview": "node dist/cli.js preview",
+    "send-test": "node dist/cli.js send-test",
+    "report-currency": "node dist/cli.js report-currency"
   }
 }

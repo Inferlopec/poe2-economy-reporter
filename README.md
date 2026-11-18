@@ -1,171 +1,155 @@
 # PoE2 Economy Reporter
 
-Self-hosted daily Path of Exile 2 market reports and significant alerts for Gryt Chat, powered by poe.ninja.
+Version **0.1.0** — first MVP. See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
-> Documentation and development tooling only. Application, Docker image, Compose file and service commands are not implemented yet. MVP implementation is reserved for a separate session. Deployment/service commands below describe the accepted interface.
+A small self-hosted service posting English PoE2 market reports to one Gryt incoming webhook. One Node.js process/container, one persistent volume, no inbound ports or additional services.
 
-## Accepted behavior
+Daily at **09:00 Europe/Riga**: three currency pairs and up to ten additional currencies; top five gainers/losers and ten most expensive items for Socketable Currency, Lineage Supports, Crafting Currency and Uniques; a separate Boss Fragments expensive ranking. Currency never produces automatic alerts.
 
-- Daily at 09:00 Europe/Riga: three fixed currency pairs plus up to ten other currencies by turnover; top five increases/decreases and top ten most expensive items for Socketable Currency, Lineage Supports, Crafting Currency and Uniques; a separate top ten most expensive Boss Fragments/access items.
-- All API `Currency` entries, including crafting orbs, appear only in the currency block. Base Transmutation and Augmentation are excluded from its additional ranking, without automatically excluding improved versions.
-- Crafting Currency includes Essences, Omens, Catalysts and Liquid Emotions. Mixed mechanics endpoints need explicit item classification. Verified boss fragments/access items from different sources form one group.
-- Individual/group alerts cover all four item groups and Boss Fragments. Maximum three automatic intermediate messages per day; no automatic alerts for Currency entries.
-- Automatic league discovery, hourly fetches, seven-day history and persisted delivery state. One process/container, one volume, no extra services or inbound ports.
+Individual alerts require ≥25% **and** ≥0.5 Div movement over six hours, two distinct confirmations and a twelve-hour cooldown. Group alerts require ten comparable items, ≥30% moving ≥15% in one direction over 24h and two confirmations. At most three automatic intermediate messages per local day. See [SPEC.md](SPEC.md) for the complete behavior.
 
-Individual alerts require at least 25% **and** 0.5 Div movement over six hours, two distinct qualifying observations and a 12-hour cooldown. A repeat must also meet both movement thresholds relative to the last alerted price. Group alerts require at least ten comparable eligible items, 30% moving in one direction by at least 15% over 24 hours, and two confirmations. An ongoing unchanged group trend does not repeatedly alert.
+## Run locally
 
-[SPEC.md](SPEC.md) defines exact source mapping, report layout, thresholds, delivery rules and acceptance criteria.
-
-## Freshness and activity limitations
-
-The reviewed overview responses have no verified source generation timestamp. The reporter will track retrieval time, ETag and meaningful content changes. Identical responses and `304` do not count as a second source confirmation or extend content freshness. The first valid response starts a provisional freshness interval but establishes no historical movement.
-
-**Accepted default: a source becomes unusable if either successful retrieval or a meaningful content change has not been observed within two hours.** Daily reports wait for all required non-disabled sources; affected alerts are suppressed. Deliberate source omissions are disclosed as reduced coverage. This can delay a valid report on an unchanged quiet market. It is a conservative estimate, not proof of upstream freshness. Adjust `freshness.max_unchanged_hours` to change this tradeoff. Output says `Observed at`, not an invented source-update time.
-
-Exchange activity is turnover normalized to Div; its time window is unverified. Call it `Trading volume`, not `Volume/Hour`. Uniques use active listings, not completed sales. Neither guarantees a reliable price. Initial filters may leave fewer than five/ten rows, especially for Soul Cores and Idols; never pad rankings. Missing history is shown as `—`, not zero.
-
-## Development environment (available now)
-
-Use Node.js 24 LTS and npm 11. `.nvmrc` selects Node 24 for an existing compatible version manager; no global packages are required.
+Node.js 24 LTS and npm 11 are required. No global packages are needed.
 
 ```sh
-# If using nvm:
-nvm install
-nvm use
-
-# Install locked development tools:
 npm ci
-npx --no-install tsc --version
+npm run typecheck
+npm test
+npm run build
+npm run preview -- --demo
 ```
 
-The private npm project contains TypeScript and Node.js types as development dependencies. `tsconfig.json` prepares strict ESM compilation from `src` to `dist`. There are no application files, npm scripts or placeholder tests. Typecheck/test/build scripts will accompany actual sources; running the compiler against this empty source tree is not application validation.
+For scheduled operation, supply `GRYT_WEBHOOK_URL` in the process environment and run `npm start`. Local execution does **not** automatically load `.env`; Compose loads that file. Default local storage is `./data` and optional configuration is `./config.yaml`. `DATA_DIR` and `CONFIG_PATH` can select other local paths.
 
-Git is initialized on `main`; preparation requires no remote, commits or published image/package. `.gitignore` excludes secrets, local configuration, history, dependencies and local tooling. Docker/Compose is needed for the later deployment/demo, not for documentation or installing npm tools.
+## Install the released Docker image
 
-## Deployment (planned)
-
-1. Create an incoming webhook in Gryt server settings and select its channel.
-2. Copy `.env.example` to `.env` and replace `GRYT_WEBHOOK_URL` with the full secret URL. The placeholder is not a usable credential.
-3. Once the MVP Compose file exists:
+Use Docker Engine with the Compose plugin on Linux/amd64. Node.js, npm and a source checkout are not required. The image is pinned to `0.1.0`; installation needs the release files and the persistent data volume only.
 
 ```sh
+mkdir -p poe2-economy-reporter
+cd poe2-economy-reporter
+curl -fL https://raw.githubusercontent.com/Inferlopec/poe2-economy-reporter/v0.1.0/compose.yaml -o compose.yaml
+curl -fL https://raw.githubusercontent.com/Inferlopec/poe2-economy-reporter/v0.1.0/.env.example -o .env.example
+cp .env.example .env
+# Edit .env with your complete incoming webhook URL.
+docker compose pull
+docker compose run --rm reporter --version
+docker compose run --rm reporter preview --demo --all
 docker compose up -d
 docker compose logs -f
 ```
 
-Only the webhook setting is required. Compose will load `.env`, supply a writable named volume at `/app/data` to a non-root process, and expose no ports. Fresh-volume permissions must work without manual root/chown steps. Keep the URL out of logs and YAML.
+`GRYT_WEBHOOK_URL` is the only required deployment setting. Create it in Gryt Server settings → Webhooks. The URL contains a secret; keep it out of YAML, source control and logs. Starting the service enables real scheduled publication. The demo preview is offline and does not send messages.
 
-Image coordinates are not selected yet. After release publishing is authorized and implemented, pin a versioned tag, update with `docker compose pull` and `docker compose up -d`, and retain the data volume.
+The non-root `reporter` service gets a writable named volume at `/app/data` with no manual ownership changes. No ports are exposed. Keep the same Compose project directory/name and volume across updates; do not use `docker compose down --volumes` when preserving history and delivery state.
 
-## Optional configuration (planned parser)
+Image: `ghcr.io/inferlopec/poe2-economy-reporter:0.1.0`. Stable releases also update `latest`; explicit version tags make upgrades deliberate. To update, edit the image version in `compose.yaml`, run `docker compose pull`, then `docker compose up -d`. The initial registry image targets Linux/amd64; build from source on other architectures.
 
-[config.example.yaml](config.example.yaml) contains all accepted defaults and comments. No parser exists yet. To prepare overrides, copy it to `config.yaml` and edit what you need. The future Compose example will offer an optional read-only mount at `/app/config.yaml`; local execution will read `./config.yaml`. Without a file, built-in defaults apply.
+## Build the image from source
 
-Use two spaces for indentation, numeric values without unit suffixes, `true`/`false` booleans, and quoted clock times. Keep the webhook in the environment. Omitted mapping keys retain defaults; supplied lists replace default lists. Unknown keys/invalid values must stop startup. Restart after edits.
-
-Timezone precedence: YAML `timezone` > environment `TZ` > Europe/Riga. The full example explicitly sets `timezone`; remove that line to use `TZ`. Use an IANA name such as `Europe/Riga`, not a fixed UTC offset, to handle DST.
-
-A minimal override file:
-
-```yaml
-daily_report:
-  time: "10:00"
-freshness:
-  max_unchanged_hours: 3
-liquidity:
-  exchange_min_volume_divine:
-    Runes: 20
-  boss_fragments_min_volume_divine: 20
-  uniques_min_listings: 50
-currency:
-  top_by_volume: 8
-  excluded_ids: [transmute, aug, wisdom]
-```
-
-This preserves all other defaults, moves publication to 10:00, accepts unchanged contents for up to three hours, tightens the named filters and adds Wisdom to exclusions. Use API IDs, not display names; preserve `transmute` and `aug` when extending the list. Built-in classification can be adjusted for verified individual items using the league-adjustment settings below.
-
-| Setting | Meaning/default |
-| --- | --- |
-| `league` | `auto` or an exact supported league ID. |
-| `sources.disabled` | Known API source types to omit intentionally; default `[]`. Currency cannot be disabled. |
-| `classification.overrides` | Item inclusion/reassignment/exclusion rules; default `[]`. Each rule has `source`, `id`, `group`; `null` excludes. |
-| `refresh_minutes` | Default 60, minimum 60 minutes. |
-| `freshness.max_unchanged_hours` | Default 2 hours; at least the fetch interval in hours. |
-| `daily_report.time` | Local `HH:MM`, default `09:00`. |
-| `daily_report.top_movers` / `top_expensive` | Positive row counts, defaults 5 / 10. |
-| `daily_report.categories` | Nonempty unique list of `socketable`, `lineage_supports`, `crafting`, `uniques`, `boss_fragments`; default all five. Controls daily sections only; currency remains present and alert coverage is independent. |
-| `currency.top_by_volume` | Additional ranked currencies, default 10; three fixed pairs are extra. |
-| `currency.excluded_ids` | Ranking exclusion list, default `[transmute, aug]`. |
-| `liquidity.exchange_min_volume_divine` | Per-source minimum turnover in Div; see table below. |
-| `liquidity.boss_fragments_min_volume_divine` | Default 10 Div; overrides the containing source threshold for boss items. |
-| `liquidity.uniques_min_listings` | Default 30 listings, for all included unique types. |
-| `alerts.enabled` | Default `true`; `false` disables all automatic intermediate alerts. |
-| `alerts.max_per_day` / `max_items_per_message` | Positive integers up to 3, defaults 3 / 3. |
-| `alerts.confirmation_checks` / `cooldown_hours` | Defaults 2 distinct confirmations / 12 hours; confirmations must be an integer of at least 2. |
-| `alerts.item.window_hours` | Default 6 hours. |
-| `alerts.item.min_change_percent` / `min_change_divine` | Defaults 25 percent / 0.5 Div; both required. |
-| `alerts.category.window_hours` | Default 24 hours. |
-| `alerts.category.min_change_percent` / `min_affected_percent` | Defaults 15 percent movement / 30 percent affected share. |
-| `alerts.category.min_eligible_items` | Default 10 comparable eligible items. |
-
-Write percentages as `25`, not `0.25`. Thresholds are positive; affected share is at most 100 percent, but movement thresholds may exceed 100 percent. Counts are integers; horizons must fit seven-day retention and sampling. Cooldown is independent of history retention. English output and seven-day history are fixed: no `language` or `history_days` options. `top_by_volume` must be a positive integer.
-
-| API source | Minimum turnover in Div |
-| --- | ---: |
-| Currency, Ritual | 20 |
-| Runes, SoulCores, Idols, LineageSupportGems | 10 |
-| Essences, Breach, Delirium | 5 |
-
-Boss Fragments has a separate 10 Div default. Filters apply now and at baselines. Raising thresholds reduces coverage; lowering them admits less-active and potentially noisy items. No automatic tuning. Boss membership and its provisional threshold still need representative API verification before code implementation.
-
-## New-league adjustments (planned)
-
-Ordinary changes to league ID, activity/alert thresholds, freshness, item classification and source omissions require editing YAML and restarting, without rebuilding the image. There is no hot reload. With a single-file config mount, prefer `docker compose up -d --force-recreate reporter` after saving edits: editors may replace the file, leaving an existing bind mount attached to the old file. This deployment command becomes available with the future Compose file; it preserves the named data volume. Changing the webhook environment also requires container recreation.
-
-For example, after verifying the item in the selected league:
-
-```yaml
-sources:
-  disabled: [Idols]
-classification:
-  overrides:
-    - source: Ritual
-      id: an-audience-with-the-king
-      group: boss_fragments
-```
-
-This deliberately omits Idols from Socketable Currency and assigns the reviewed boss-access ID to Boss Fragments, overriding its built-in classification if necessary. It does not enable new endpoints or relax activity filters. The rule may be redundant once the built-in boss mapping is verified. To exclude the item instead, set `group: null`. There is one rule per source/ID; duplicate rules are invalid, not ordered exceptions. Lists replace defaults and must contain every custom rule/disabled source you want to retain.
-
-- Use exact source types supported by the installed adapter registry. For exchange items, use `line.id`; for stash items, use `itemId`. A stash rule covers all published variants but does not merge them.
-- Exchange targets are `socketable`, `lineage_supports`, `crafting`, `boss_fragments`; supported unique stash items target `uniques`. Rules may also exclude either type. Currency stays in its own block; configure its exclusions under `currency.excluded_ids`.
-- A rule can activate a previously unused supported source. Supply its minimum Div turnover under `liquidity.exchange_min_volume_divine` unless all its included items use the boss threshold. New API types/formats or new report groups still require code and an updated image.
-- Unknown source/group names, incompatible pairs and missing required thresholds fail validation. An ID absent from the selected league produces a warning; no synthetic entry is created. Disabled sources take precedence, leaving their item rules dormant with a warning.
-- Disabled sources are not fetched and their cached items are excluded from reports and alerts. Reports visibly list omissions and mark affected groups as reduced coverage. A group with no remaining sources is shown as unavailable. Failed/stale sources are never silently treated as disabled.
-- Group alerts use only the remaining eligible universe, retain the ten-item default minimum, and disclose reduced coverage. Classification/coverage changes reset affected confirmations and group rearming, preserving cooldowns, last-alerted prices, daily counters and sent/unknown records. Reclassified items need new in-group history for changes; old unsent report parts are canceled rather than mixed with the new configuration.
-
-For a league launch: review `league` (`auto` normally needs no edit), item IDs and source availability; adjust thresholds if early trading is sparse; use the planned `check` and `preview` commands before enabling delivery with the new config. Their results must show effective coverage and unmatched/dormant rules. Configuration is instance-wide: old item rules do not disappear automatically when the league changes. The new league starts its own history; 6h/24h comparisons need new observations, and initial activity filters or the conservative two-hour freshness policy may reduce coverage.
-
-## Operations (planned)
+For a source checkout, use the explicit build overlay. The default `compose.yaml` only pulls the released image.
 
 ```sh
-docker compose run --rm reporter check
-docker compose run --rm reporter preview
-docker compose run --rm reporter preview --demo
-docker compose run --rm reporter send-test
-docker compose run --rm reporter report-currency
+git clone https://github.com/Inferlopec/poe2-economy-reporter.git
+cd poe2-economy-reporter
+git checkout v0.1.0
+cp .env.example .env
+# Edit .env before enabling scheduled delivery.
+docker compose -f compose.yaml -f compose.build.yaml build
+docker compose -f compose.yaml -f compose.build.yaml run --rm reporter preview --demo --all
+docker compose -f compose.yaml -f compose.build.yaml up -d --build
 ```
 
-- `check`: configuration/source checks, no webhook delivery or production writes.
-- `preview`: local report from stored history, showing unavailable/stale status. `--demo` is deterministic and offline. Neither requires a webhook or writes production state.
-- `send-test`: explicitly publish one labeled test message.
-- `report-currency`: manually publish only currency rates from usable stored observations, including while the scheduler runs; refuse stale/missing data. No changes to scheduled state/counters. A server CLI command, not a Gryt chat command.
+## Configuration
 
-Only delivery commands require the webhook. Manual/test sends have no automatic retries and do not use the automatic daily alert allowance. Initial prices are available immediately; historical changes and alerts need collected baselines.
+Without YAML, built-in defaults apply. To override them, create `config.yaml` from [config.example.yaml](config.example.yaml) and uncomment its read-only mount in Compose. With the image-only installation, download the example once before editing it:
 
-An automatic timeout/interrupted send may have reached Gryt: record it as unknown and do not blindly replay. Confirmed report parts are not resent; uncertain alerts conservatively reserve a daily slot/cooldown. Exactly-once delivery is not guaranteed. Inspect uncertain delivery before deliberately repeating a manual send.
+```sh
+curl -fL https://raw.githubusercontent.com/Inferlopec/poe2-economy-reporter/v0.1.0/config.example.yaml -o config.yaml
+```
 
-## Sources and verification
+Preserve an existing configuration when updating. Mappings merge with defaults; lists replace them. Unknown keys, duplicate rules, invalid types/ranges and incompatible classifications stop startup.
 
-Reviewed on 2026-11-18: [poe.ninja API](https://poe.ninja/docs/api), [Gryt webhooks](https://docs.gryt.chat/docs/build/webhooks) and [official OpenAPI](https://github.com/Gryt-chat/server/blob/main/openapi/webhooks.json). Current Gryt allows 10 cards/message, 25 fields/card and 6000 combined card-text characters; split reports into numbered parts without dropping rankings. Actual deployed-server compatibility remains a separately authorized check; no live webhook was called.
+Timezone precedence is YAML `timezone`, then environment `TZ`, then Europe/Riga. All configuration edits require restart. After saving a bind-mounted file, recreate the container to handle editors that replace its inode:
 
-[SPEC.md](SPEC.md) records representative API coverage, unresolved source checks and acceptance. [AGENTS.md](AGENTS.md) defines development constraints. Read both at the start of the separate MVP implementation session; no extra roadmap/planning document is needed.
+```sh
+docker compose up -d --force-recreate reporter
+```
+
+Use `classification.overrides` for supported source/item IDs and `sources.disabled` for deliberate omissions. Currency cannot be disabled or reassigned. A new exchange source needs an explicit turnover threshold unless included items all use the boss threshold. Unknown API formats still require an adapter update. Unmatched rules warn; disabled sources take precedence and leave rules dormant.
+
+Coverage reductions are printed in reports. Failed/stale sources are never automatically disabled. Mapping/coverage edits cancel old unsent report parts and reset affected evidence; cooldowns, last-alerted prices, reservations and same-day report records survive. Reclassified items need new history. Configuration is global across leagues, while price history and item/group signal identities are league-specific.
+
+## Commands
+
+Build first for local npm commands. Container commands use the installed image and need no local build:
+
+| Local | Container | Behavior |
+| --- | --- | --- |
+| `npm run check` | `docker compose run --rm reporter check` | Validate config, GET public sources, show coverage and unmatched/dormant rules; no writes or Gryt calls |
+| `npm run preview` | `docker compose run --rm reporter preview` | Render stored data, explicitly labeling stale/incomplete coverage; no network or writes |
+| `npm run preview -- --demo` | `docker compose run --rm reporter preview --demo` | Deterministic offline report, no webhook/history required |
+| `npm run send-test` | `docker compose run --rm reporter send-test` | Explicitly send one labeled test message |
+| `npm run report-currency` | `docker compose run --rm reporter report-currency` | Manually send currency from usable stored data, including while scheduler runs |
+
+Only scheduler and delivery commands need the webhook. Manual/test sends never change scheduled counters and never automatically retry. Run them only when you intend to publish to the channel. Initial prices need no baseline; percentage changes and alerts require collected history. Optional factual narrative summaries are omitted.
+
+## Visual checks in a Gryt test channel
+
+The deterministic suite uses production formatters with synthetic data and marks every card/message `[DEMO]`. It includes the full daily report, currency-only report, all 14 selected Fragments, individual and group alerts in both directions for all five groups, merged alerts with three examples, missing history, empty rankings, reduced/stale coverage, variants/corruption and long names split into numbered parts. It does not wait for real market signals.
+
+Inspect the exact payloads and total message count offline first (no webhook or production config/history required):
+
+```sh
+docker compose run --rm reporter preview --demo --all
+# Inspect one case:
+docker compose run --rm reporter preview --demo --case item-up
+```
+
+Create a webhook for a separate **test channel** and set `GRYT_TEST_WEBHOOK_URL` in `.env`. This variable is used only by `send-test --demo`; there is no fallback to `GRYT_WEBHOOK_URL`. Set the actual target channel in Gryt when creating the webhook; the service cannot read channel settings through an incoming webhook.
+
+The following commands intentionally post test messages. Start with one case, then send the complete suite if desired:
+
+```sh
+docker compose run --rm reporter send-test --demo --case daily
+docker compose run --rm reporter send-test --demo
+```
+
+Local equivalents after building are `npm run preview -- --demo --all` and `npm run send-test -- --demo --case daily`; local runs need `GRYT_TEST_WEBHOOK_URL` exported in the environment, since Node does not load `.env` automatically.
+
+Case IDs: `daily`, `currency`, `fragments`, `item-up`, `item-down`, `group-up`, `group-down`, `combined`, `no-history`, `empty`, `reduced`, `stale`, `long-names`. Alert cases send one example per group. Inspect all numbered parts, signs/units, variant and corruption labels, empty/unavailable indicators and coverage notices; check narrow/mobile layouts as well as desktop.
+
+The suite bypasses production YAML, reads/writes no production history or delivery state, and never consumes scheduled limits/cooldowns. Messages are paced at least two seconds apart. Logs identify the case, part and result/message ID. Any failure, `429` or uncertain delivery stops the batch without retries. Inspect the test channel before deliberately rerunning `--case`: it repeats the entire selected case, including parts that previously succeeded. Stale/incomplete reports are sent only as labeled synthetic rendering samples; automatic production freshness rules are unchanged.
+
+## Freshness and recovery
+
+poe.ninja does not expose a verified generation timestamp. The service tracks successful retrieval and meaningful content changes separately. Identical content and `304` do not refresh the content-change clock or confirm alerts. Both clocks must be within two hours by default. This conservative assumption can suppress genuinely unchanged markets. Output says `Observed at`; observations are not an atomic upstream snapshot.
+
+Exchange activity is `Trading volume` normalized to Div, with an unverified time window. Unique activity is active listings, not completed sales. Thresholds apply at both comparison endpoints; short rankings are expected. Missing history is `—`, never zero.
+
+Snapshots and delivery state are atomic JSON replacements. A maintained filesystem lock with heartbeat permits one scheduled writer; after an unclean exit allow 30 seconds for stale-lock recovery. Docker's restart policy retries startup. Read-only/manual commands do not take the writer lock. SIGINT/SIGTERM stop collection and release the lock.
+
+Corrupted files remain on disk. Corrupt history is not used; corrupt delivery state blocks automatic sending. Stop the service and preserve a backup before explicit inspection/repair; do not delete state to clear an uncertain delivery. There is no automatic repair command.
+
+A report stores immutable numbered payloads before POST. Successful parts are not replayed. Timeout, ambiguous server errors, malformed success or restart during `sending` become `unknown`; subsequent report parts stop. Uncertain alerts reserve their daily slot/cooldown. Exactly-once delivery is not guaranteed. Logs distinguish incomplete/canceled reports; inspect unknown records in `state.json` before any deliberate manual repeat.
+
+## Verification and dependencies
+
+Tests use compact real API fixtures plus deterministic synthetic history and mocked delivery. They cover conversion, classification/coverage, variants, baselines, freshness, rankings, confirmations, delivery ambiguity, persistence, DST, payload splitting and read-only commands. The default Boss Fragments selection includes the 14 user-selected Fragments entries plus the existing Audience and Breachstone entries. Other Fragments entries stay excluded; activity/history/freshness filters still apply. Fixture provenance and exact IDs are recorded in [SPEC.md](SPEC.md).
+
+Runtime dependencies are `yaml` for YAML parsing and `proper-lockfile` for cross-process writer exclusion and crash recovery. Network, analysis, scheduling, JSON storage and tests use Node built-ins. CI checks types, tests, production build and an offline container demo; release-tag CI publishes GHCR images. No real webhook is called by tests or demo. Compatibility with a particular deployed Gryt server still requires a separately authorized live check.
+
+## Release preparation
+
+For `0.1.0`, package/lockfile/runtime versions, the Docker label and the Compose image tag must agree. Run the release guard and standard checks before publishing:
+
+```sh
+node scripts/release-check.mjs v0.1.0
+npm ci
+npm run typecheck
+npm test
+npm run build
+```
+
+Publishing is a separate authorized action: commit the reviewed source on `main`, then create and push the matching `v0.1.0` tag. Tag CI rejects mismatched/unstable versions, verifies source and the built image offline, publishes GHCR tags `0.1.0` and `latest`, then creates the GitHub release with changelog notes. No npm package is published. A workflow failure can leave a published image without GitHub release notes; inspect both jobs before retrying. Registry visibility/access and actual CI execution are verified after publication, not by local checks.
