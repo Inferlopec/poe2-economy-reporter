@@ -76,3 +76,8 @@ alerts:
     min_change_percent: 15
     min_affected_percent: 30
     min_eligible_items: 10
+
+# Optional cleanup of Reporter messages; requires bot approval in Gryt.
+retention:
+  enabled: false
+  days: 3

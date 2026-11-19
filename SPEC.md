@@ -2,7 +2,7 @@
 
 ## Scope and status
 
-One instance sends an English-language daily Path of Exile 2 economy report and limited significant alerts to one Gryt channel. Source: poe.ninja. One Node.js process, one container, one persistent volume at `/app/data`. No inbound ports, database, external scheduler, LLM, bot SDK, plugin, web UI, chat commands, trading advice, item appraisal or farming-profit estimates.
+One instance sends an English-language daily Path of Exile 2 economy report and limited significant alerts to one Gryt channel. Source: poe.ninja. One Node.js process, one container, one persistent volume at `/app/data`. No inbound ports, database, external scheduler, LLM, plugin, web UI, chat commands, trading advice, item appraisal or farming-profit estimates.
 
 The review decisions below are accepted. MVP implementation was authorized in the implementation session on 2026-11-18. Application, commands, Docker/Compose and CI now accompany this specification. Follow-up presentation and alert-category configuration updates do not change market analysis, thresholds or architecture. External publication and real webhook sends still require authorization.
 
@@ -144,7 +144,7 @@ Rules cover all five item groups, including Boss Fragments; Currency is excluded
 
 ## Configuration and commands
 
-`config.example.yaml` defines accepted defaults. YAML is optional; deep-merge known mappings, replace explicitly supplied lists, reject unknown keys/types/ranges. `alerts.categories` accepts only `socketable`, `lineage_supports`, `crafting`, `uniques` and `boss_fragments`; it defaults to all five. It independently controls intermediate alert groups and does not affect `daily_report.categories` or source collection/history. Changes apply on restart. English and seven-day retention are fixed; no `language` or `history_days` option.
+`config.example.yaml` defines accepted defaults. YAML is optional; deep-merge known mappings, replace explicitly supplied lists, reject unknown keys/types/ranges. `alerts.categories` accepts only `socketable`, `lineage_supports`, `crafting`, `uniques` and `boss_fragments`; it defaults to all five. It independently controls intermediate alert groups and does not affect `daily_report.categories` or source collection/history. Changes apply on restart. English output and seven-day market-history retention are fixed; no `language` or `history_days` option.
 
 Timezone precedence: explicit YAML `timezone` > nonempty environment `TZ` > Europe/Riga. The only required normal-deployment setting is environment `GRYT_WEBHOOK_URL`. Never put it in YAML, logs or history. Validate URL, IANA zones and `HH:MM` time at startup. Locally read optional `./config.yaml`; the planned container uses optional `/app/config.yaml`. Missing file uses defaults; malformed/invalid file stops startup.
 
@@ -168,6 +168,16 @@ Only scheduler, `send-test` and `report-currency` require a webhook. Test implem
 - GitHub Actions typecheck/test/build changes. Stable release tags must match package/lockfile/runtime/container versions; release CI verifies the built image offline before publishing versioned GHCR images plus `latest`, and publishes GitHub release notes after image publication. Initial registry images target Linux/amd64. Do not publish, push or send real webhooks without authorization. Image coordinates depend on the future repository/package owner.
 - Deterministic fixtures/mocked-network tests cover conversion direction and differing source rates; filtering, mixed IDs and variants; classification includes/exclusions, duplicate/incompatible rules, unmatched/dormant IDs, source disabling/disclosure, coverage changes and preserved cooldowns/counters; all rankings including Currency and Boss Fragments; horizon edges, unchanged/304/stale/missing data; both alert directions/boundaries, confirmation gaps, denominator/rearming, cap, league changes, DST, restart/corruption, ambiguous delivery and payload splitting.
 - MVP handoff requires typechecking, tests, production build and Docker demo if available. Preserve all eligible report rows and prove demo/read-only commands cannot send or modify production state.
+
+## Optional message retention
+
+`retention.enabled` defaults to false; `retention.days` defaults to 3 and must be a positive safe integer. Retention is independent of seven-day market history. In the existing process/container, use `@gryt/bot` only to delete acknowledged Reporter publications: scheduled report parts, alerts and manual `report-currency`. Exclude `send-test` and all demo messages. Keep publication through the webhook.
+
+Record message ID, response conversation ID, normalized server origin and successful send time even while retention is disabled. Store automatic receipts with delivery parts and recover them into an atomic per-message journal under the existing data volume; manual commands write their own journal entries without modifying scheduler state. Legacy sends without complete receipts and unknown deliveries are never guessed or scanned from channel history. A crash between a successful manual POST and receipt persistence may leave an untracked message; warn on journal errors without replaying publication.
+
+The channel is exclusively for this Reporter, with no foreign threads/replies: Gryt deletes a root's thread along with the message. Bot approval and failures must never block collection/publication. Request channel read access and `manage_messages`, not send permission; disable command/help routing. Keep private identity under `/app/data` (or DATA_DIR), mode 0600, and preserve corrupted files. No additional configuration files, secrets, containers or volumes. First approval is through Server settings → Bots.
+
+Run cleanup once per local calendar day, immediately when first ready if today's pass has not run. Persist the attempt before deleting; do not replay missed days. Delete messages at least days × 24 hours old, only when the receipt server matches the current webhook origin. Preserve old-server records without connecting to those servers. Process sequentially with pacing. Await matching `chat:deleted`; `bot.delete()` alone is not an acknowledgement. The exact `Message not found` response during the sole in-flight deletion resolves that entry as absent and permits continuation. On timeout, disconnection, other errors or rate limits, close the deletion session and retry unfinished entries on a later day. Preserve sent delivery records, counters, cooldowns and market history. Identity/journal errors disable cleanup only; unknown/corrupt records are preserved.
 
 ## References
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0 — 2026-11-19
+
+- Add optional automatic retention for scheduled reports, alerts and manual currency reports, disabled by default with a three-day lifetime.
+- Keep webhook publication; use a persistent Gryt bot identity only for deletion after administrator approval, inside the existing container/data volume.
+- Track acknowledged message IDs with server/channel/time metadata; skip legacy/unknown sends and old-server records. Preserve market history and delivery counters.
+- Confirm deletion events, continue after already-absent messages, and isolate cleanup errors from normal collection/publication. Test/demo sends remain excluded.
+
+### Upgrade from 0.2.0
+
+Change your Compose image tag to `0.3.0`, pull the image and recreate the service. Preserve the existing data volume and configuration. Retention stays disabled unless explicitly enabled in YAML; its default lifetime is three days. Approve the new retention bot in Gryt only if enabling cleanup. No state reset or manual migration is needed. Messages published before this upgrade without complete channel/time receipts remain untouched.
+
 ## 0.2.0 — 2026-11-19
 
 Consistent report rows and independent category selection for automatic alerts.

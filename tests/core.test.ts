@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFile, mkdtemp, writeFile, rm, stat } from "node:fs/promises";
+import { readFile, mkdtemp, writeFile, rm, stat, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { configure, webhook } from "../dist/config.js";
@@ -738,10 +738,18 @@ test("manual currency delivery leaves scheduled state and history unchanged", as
     globalThis.fetch = fetcher((url: string, options: RequestInit) => {
       assert.equal(options.method, "POST");
       posts++;
-      return Response.json({ message_id: "manual" });
+      return Response.json({ message_id: "manual", conversation_id: "channel" });
     });
     await main(["report-currency"], () => {});
     assert.equal(posts, 1);
+    const journal = join(dir, "retention-messages");
+    const receipts = await readdir(journal);
+    assert.equal(receipts.length, 1);
+    const receipt = JSON.parse(await readFile(join(journal, receipts[0]!), "utf8"));
+    assert.equal(receipt.messageId, "manual");
+    assert.equal(receipt.conversationId, "channel");
+    assert.equal(receipt.server, "https://example.invalid");
+    assert.equal(receipt.status, "pending");
     assert.equal(await readFile(join(dir, "state.json"), "utf8"), before);
   } finally {
     globalThis.fetch = original;

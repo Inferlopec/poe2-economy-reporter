@@ -1,3 +1,4 @@
+import { rememberSafely } from "./retention.js";
 import { VERSION } from "./version.js";
 import { loadConfig, webhook } from "./config.js";
 import { discover, refresh } from "./api.js";
@@ -135,6 +136,7 @@ export async function main(
   const parts = report(h, c, Date.now(), true);
   for (const p of parts) {
     const result = await post(webhook(), p);
+    if (result.kind === "sent") await rememberSafely(dir, result.receipt);
     output(JSON.stringify(result));
     if (result.kind !== "sent") {
       process.exitCode = 1;

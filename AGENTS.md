@@ -7,7 +7,7 @@ PoE2 Economy Reporter is a small self-hosted service that posts daily market rep
 ## Architecture
 
 - TypeScript on a supported Node.js LTS release; use npm and a committed lockfile.
-- One process, one Docker container, one persistent volume (`/app/data`). No inbound ports, database, web UI, external scheduler, LLM, bot SDK or Gryt plugin.
+- One process, one Docker container, one persistent volume (`/app/data`). No inbound ports, database, web UI, external scheduler, LLM or Gryt plugin. The optional `@gryt/bot` integration is restricted to message retention; publication remains webhook-based.
 - Public poe.ninja data → normalization → local history → market analysis → report/alert formatting → Gryt incoming webhook.
 - Keep API access, history, analysis, formatting, scheduling and delivery separate. Prefer small modules and pure functions for analysis.
 - Verify current poe.ninja and Gryt contracts against their documentation and representative responses; never assume undocumented field meanings, category IDs or webhook limits.

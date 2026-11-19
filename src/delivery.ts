@@ -1,9 +1,9 @@
 import type { Fetch } from "./api.js";
 import { validate } from "./format.js";
 import { record } from "./model.js";
-import type { Part, Payload } from "./model.js";
+import type { Part, Payload, Receipt } from "./model.js";
 export type Outcome =
-  | { kind: "sent"; id: string; warnings: unknown[] }
+  | { kind: "sent"; id: string; receipt?: Receipt; warnings: unknown[] }
   | { kind: "retry"; after: number }
   | { kind: "rejected" }
   | { kind: "unknown" };
@@ -37,6 +37,9 @@ export async function post(
     return {
       kind: "sent",
       id: body["message_id"],
+      ...(typeof body["conversation_id"] === "string" && body["conversation_id"]
+        ? { receipt: { server: new URL(url).origin, conversationId: body["conversation_id"], messageId: body["message_id"], sentAt: Date.now() } }
+        : {}),
       warnings: Array.isArray(body["warnings"]) ? body["warnings"] : [],
     };
   } catch {
@@ -57,6 +60,7 @@ export async function deliver(
   if (result.kind === "sent") {
     part.status = "sent";
     part.messageId = result.id;
+    if (result.receipt) part.receipt = result.receipt;
     if (result.warnings.length)
       console.warn(
         "Gryt returned delivery warnings; inspect payload compatibility",

@@ -1,6 +1,6 @@
 # PoE2 Economy Reporter
 
-Version **0.2.0** — report formatting and independent alert categories. See [CHANGELOG.md](CHANGELOG.md) for release notes.
+Version **0.3.0** — optional automatic message retention. See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 A small self-hosted service posting English PoE2 market reports to one Gryt incoming webhook. One Node.js process/container, one persistent volume, no inbound ports or additional services.
 
@@ -24,13 +24,13 @@ For scheduled operation, supply `GRYT_WEBHOOK_URL` in the process environment an
 
 ## Install the released Docker image
 
-Use Docker Engine with the Compose plugin on Linux/amd64. Node.js, npm and a source checkout are not required. The image is pinned to `0.2.0`; installation needs the release files and the persistent data volume only.
+Use Docker Engine with the Compose plugin on Linux/amd64. Node.js, npm and a source checkout are not required. The image is pinned to `0.3.0`; installation needs the release files and the persistent data volume only.
 
 ```sh
 mkdir -p poe2-economy-reporter
 cd poe2-economy-reporter
-curl -fL https://raw.githubusercontent.com/Inferlopec/poe2-economy-reporter/v0.2.0/compose.yaml -o compose.yaml
-curl -fL https://raw.githubusercontent.com/Inferlopec/poe2-economy-reporter/v0.2.0/.env.example -o .env.example
+curl -fL https://raw.githubusercontent.com/Inferlopec/poe2-economy-reporter/v0.3.0/compose.yaml -o compose.yaml
+curl -fL https://raw.githubusercontent.com/Inferlopec/poe2-economy-reporter/v0.3.0/.env.example -o .env.example
 cp .env.example .env
 # Edit .env with your complete incoming webhook URL.
 docker compose pull
@@ -44,7 +44,7 @@ docker compose logs -f
 
 The non-root `reporter` service gets a writable named volume at `/app/data` with no manual ownership changes. No ports are exposed. Keep the same Compose project directory/name and volume across updates; do not use `docker compose down --volumes` when preserving history and delivery state.
 
-Image: `ghcr.io/inferlopec/poe2-economy-reporter:0.2.0`. Stable releases also update `latest`; explicit version tags make upgrades deliberate. To update, edit the image version in `compose.yaml`, run `docker compose pull`, then `docker compose up -d`. The initial registry image targets Linux/amd64; build from source on other architectures.
+Image: `ghcr.io/inferlopec/poe2-economy-reporter:0.3.0`. Stable releases also update `latest`; explicit version tags make upgrades deliberate. To update, edit the image version in `compose.yaml`, run `docker compose pull`, then `docker compose up -d`. The initial registry image targets Linux/amd64; build from source on other architectures.
 
 ## Build the image from source
 
@@ -53,7 +53,7 @@ For a source checkout, use the explicit build overlay. The default `compose.yaml
 ```sh
 git clone https://github.com/Inferlopec/poe2-economy-reporter.git
 cd poe2-economy-reporter
-git checkout v0.2.0
+git checkout v0.3.0
 cp .env.example .env
 # Edit .env before enabling scheduled delivery.
 docker compose -f compose.yaml -f compose.build.yaml build
@@ -66,7 +66,7 @@ docker compose -f compose.yaml -f compose.build.yaml up -d --build
 Without YAML, built-in defaults apply. To override them, create `config.yaml` from [config.example.yaml](config.example.yaml) and uncomment its read-only mount in Compose. With the image-only installation, download the example once before editing it:
 
 ```sh
-curl -fL https://raw.githubusercontent.com/Inferlopec/poe2-economy-reporter/v0.2.0/config.example.yaml -o config.yaml
+curl -fL https://raw.githubusercontent.com/Inferlopec/poe2-economy-reporter/v0.3.0/config.example.yaml -o config.yaml
 ```
 
 Preserve an existing configuration when updating. Mappings merge with defaults; lists replace them. Unknown keys, duplicate rules, invalid types/ranges and incompatible classifications stop startup.
@@ -82,6 +82,16 @@ Use `classification.overrides` for supported source/item IDs and `sources.disabl
 Use `alerts.categories` to enable a subset of `socketable`, `lineage_supports`, `crafting`, `uniques` and `boss_fragments` for individual and group alerts. It defaults to all five; `[]` disables alert generation for every group. This does not change `daily_report.categories` or market data/history collection. Disabling a category resets its pending confirmations while preserving cooldowns, delivery state and daily limits.
 
 Coverage reductions are printed in reports. Failed/stale sources are never automatically disabled. Mapping/coverage edits cancel old unsent report parts and reset affected evidence; cooldowns, last-alerted prices, reservations and same-day report records survive. Reclassified items need new history. Configuration is global across leagues, while price history and item/group signal identities are league-specific.
+
+## Optional message cleanup
+
+In your existing `config.yaml`, set `retention.enabled: true` and optionally `retention.days` (default **3**, positive whole days). Restart the service, then approve **Reporter Retention** in Gryt **Server settings → Bots** with channel read access and **Manage messages**. Bots must be allowed to request approval. No new environment variables or configuration files are required. Approval may wait indefinitely; market collection and webhook publication keep running.
+
+Cleanup runs once per local calendar day, starting as soon as the bot is ready. It deletes acknowledged daily reports, alerts and manual `report-currency` messages at least `days × 24 hours` old. `send-test` and demo messages are excluded. The target channel must remain exclusive to this Reporter, without foreign threads/replies: Gryt deletes a message's thread together with its root.
+
+Publication remains webhook-based. The bot never publishes, runs commands or scans channel history. Its private identity (`gryt-retention-identity.json`), per-message journal and daily cleanup markers live in the existing data volume; preserve that volume across upgrades. New publications are tracked even when cleanup is disabled (the default). Older records without channel/time metadata and uncertain deliveries are left untouched. A server change never triggers deletion on the previous server.
+
+Manually deleted messages are recorded as already absent and do not stop cleanup. Other deletion failures close the current session and leave unfinished records for a later day's pass, without interrupting normal reports. Corrupt identity/journal files are preserved with warnings. Do not erase delivery state to repair cleanup. A crash immediately after a manual POST but before its journal write may leave that message untracked; it is never blindly reposted.
 
 ## Commands
 
@@ -142,18 +152,18 @@ A report stores immutable numbered payloads before POST. Successful parts are no
 
 Tests use compact real API fixtures plus deterministic synthetic history and mocked delivery. They cover conversion, classification/coverage, variants, baselines, freshness, rankings, confirmations, delivery ambiguity, persistence, DST, payload splitting and read-only commands. The default Boss Fragments selection includes the 14 user-selected Fragments entries plus the existing Audience and Breachstone entries. Other Fragments entries stay excluded; activity/history/freshness filters still apply. Fixture provenance and exact IDs are recorded in [SPEC.md](SPEC.md).
 
-Runtime dependencies are `yaml` for YAML parsing and `proper-lockfile` for cross-process writer exclusion and crash recovery. Network, analysis, scheduling, JSON storage and tests use Node built-ins. CI checks types, tests, production build and an offline container demo; release-tag CI publishes GHCR images. No real webhook is called by tests or demo. Compatibility with a particular deployed Gryt server still requires a separately authorized live check.
+Runtime dependencies are `yaml` for YAML parsing, `proper-lockfile` for cross-process writer exclusion and crash recovery, and `@gryt/bot` for optional message deletion only. Network, analysis, scheduling, JSON storage and tests use Node built-ins. CI checks types, tests, production build and an offline container demo; release-tag CI publishes GHCR images. No real webhook is called by tests or demo. Compatibility with a particular deployed Gryt server still requires a separately authorized live check.
 
 ## Release preparation
 
-For `0.2.0`, package/lockfile/runtime versions, the Docker label and the Compose image tag must agree. Run the release guard and standard checks before publishing:
+For `0.3.0`, package/lockfile/runtime versions, the Docker label and the Compose image tag must agree. Run the release guard and standard checks before publishing:
 
 ```sh
-node scripts/release-check.mjs v0.2.0
+node scripts/release-check.mjs v0.3.0
 npm ci
 npm run typecheck
 npm test
 npm run build
 ```
 
-Publishing is a separate authorized action: commit the reviewed source on `main`, then create and push the matching `v0.2.0` tag. Tag CI rejects mismatched/unstable versions, verifies source and the built image offline, publishes GHCR tags `0.2.0` and `latest`, then creates the GitHub release with changelog notes. No npm package is published. A workflow failure can leave a published image without GitHub release notes; inspect both jobs before retrying. Registry visibility/access and actual CI execution are verified after publication, not by local checks.
+Publishing is a separate authorized action: commit the reviewed source on `main`, then create and push the matching `v0.3.0` tag. Tag CI rejects mismatched/unstable versions, verifies source and the built image offline, publishes GHCR tags `0.3.0` and `latest`, then creates the GitHub release with changelog notes. No npm package is published. A workflow failure can leave a published image without GitHub release notes; inspect both jobs before retrying. Registry visibility/access and actual CI execution are verified after publication, not by local checks.

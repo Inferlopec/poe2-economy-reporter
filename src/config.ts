@@ -8,6 +8,7 @@ export interface Rule {
   group: Group | null;
 }
 export const defaults = {
+  retention: { enabled: false, days: 3 },
   league: "auto",
   timezone: "Europe/Riga",
   refresh_minutes: 60,
@@ -117,6 +118,8 @@ export function configure(
     ),
     "currency exclusions",
   );
+  if (!Number.isSafeInteger(c.retention.days) || c.retention.days > Number.MAX_SAFE_INTEGER / (24 * 3600000))
+    throw Error("Invalid retention days");
   const counts = [
     c.daily_report.top_movers,
     c.daily_report.top_expensive,

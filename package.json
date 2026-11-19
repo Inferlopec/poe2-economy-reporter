@@ -1,6 +1,6 @@
 {
   "name": "poe2-economy-reporter",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Self-hosted PoE2 economy reports for Gryt",
   "type": "module",
@@ -14,6 +14,7 @@
     "typescript": "7.0.2"
   },
   "dependencies": {
+    "@gryt/bot": "0.3.1",
     "proper-lockfile": "^4.1.2",
     "yaml": "^2.9.1"
   },

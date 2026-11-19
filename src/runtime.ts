@@ -1,3 +1,4 @@
+import { startRetention } from "./retention.js";
 import type { Config } from "./config.js";
 import { discover, refresh } from "./api.js";
 import { reserveSignals, signals } from "./analysis.js";
@@ -187,11 +188,13 @@ export async function run(c: Config, url: string, dir: string): Promise<void> {
   };
   process.once("SIGTERM", stop);
   process.once("SIGINT", stop);
+  let retention: ReturnType<typeof startRetention> | undefined;
   try {
     const s = await loadState(dir);
     recover(s);
     reconcile(s, c);
     await saveState(dir, s);
+    retention = startRetention(c, url, dir, s);
     let h: History | undefined;
     let next = 0;
     let lastPost = 0;
@@ -282,6 +285,7 @@ export async function run(c: Config, url: string, dir: string): Promise<void> {
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
   } finally {
+    await retention?.stop();
     await release();
     process.removeListener("SIGTERM", stop);
     process.removeListener("SIGINT", stop);

@@ -78,7 +78,14 @@ export interface Payload {
   text?: string;
   cards?: Card[];
 }
+export interface Receipt {
+  server: string;
+  conversationId: string;
+  messageId: string;
+  sentAt: number;
+}
 export interface Part {
+  receipt?: Receipt;
   payload: Payload;
   status: "pending" | "sending" | "sent" | "unknown" | "canceled" | "rejected";
   messageId?: string;
