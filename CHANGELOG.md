@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.0 — 2026-11-19
+
+Consistent report rows and independent category selection for automatic alerts.
+
+- Use percentage | bold compact price | item name in daily movements, expensive rankings, currency reports and individual alerts; retain category icons, colors and all eligible rows.
+- Display sub-Div individual alert prices in Ex using the current Currency conversion rate, and use vertical separators in alert details.
+- Add optional `alerts.categories` for individual and group alerts: `socketable`, `lineage_supports`, `crafting`, `uniques` and `boss_fragments`. All five remain enabled by default; `[]` disables alert generation for every group.
+- Keep daily report categories and market/history collection independent of alert selection. Clear disabled-category confirmations while retaining cooldowns, delivery records and daily reservations.
+- Preserve confirmation progress after an item is reassigned into an enabled category, even while its former category remains in retained history.
+- Update configuration documentation and regression coverage. Market analysis, thresholds and architecture are unchanged.
+
+### Upgrade from 0.1.x
+
+Change the image tag in your existing `compose.yaml` to `0.2.0`, run `docker compose pull`, then `docker compose up -d`. Preserve `.env`, optional YAML configuration and the existing data volume/project name. No state migration is required. Omitted `alerts.categories` retains all five groups. Previously prepared immutable report parts retain their original payload.
+
+The core functionality was preliminarily checked by the operator on 0.1.1. The 0.2.0 changes have automated and offline Docker demo coverage; a sustained operational run remains recommended before 1.0.
+
 ## 0.1.1 — 2026-11-18
 
 Report presentation improvements; market analysis, filtering, scheduling and delivery behavior are unchanged.

@@ -32,6 +32,7 @@ export function signals(
   s: State,
   now: number,
 ): Signal[] {
+  const enabledCategories = new Set(c.alerts.categories);
   const items = current(h, c, now).filter((o) => o.group !== "currency");
   const out: Signal[] = [];
   const touched = new Set<string>();
@@ -40,7 +41,12 @@ export function signals(
     return [];
   }
   for (const o of items) {
-    if (!o.group || o.group === "currency") continue;
+    if (
+      !o.group ||
+      o.group === "currency" ||
+      !enabledCategories.has(o.group)
+    )
+      continue;
     const key = `${h.league}:item:${o.key}`;
     touched.add(key);
     const m = (s.memory[key] ??= {});
@@ -88,6 +94,7 @@ export function signals(
     });
   }
   for (const g of groups) {
+    if (!enabledCategories.has(g)) continue;
     const complete = coverage(c, g)
       .filter((x) => !c.sources.disabled.includes(x))
       .every((x) => usable(h.sources[x], c, now));

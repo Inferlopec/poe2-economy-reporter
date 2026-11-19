@@ -1,12 +1,12 @@
 # PoE2 Economy Reporter
 
-Version **0.1.1** — report readability update. See [CHANGELOG.md](CHANGELOG.md) for release notes.
+Version **0.2.0** — report formatting and independent alert categories. See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 A small self-hosted service posting English PoE2 market reports to one Gryt incoming webhook. One Node.js process/container, one persistent volume, no inbound ports or additional services.
 
 Daily at **09:00 Europe/Riga**: three currency pairs and up to ten additional currencies; top five gainers/losers and ten most expensive items for Socketable Currency, Lineage Supports, Crafting Currency and Uniques; a separate Boss Fragments expensive ranking. Currency never produces automatic alerts.
 
-Individual alerts require ≥25% **and** ≥0.5 Div movement over six hours, two distinct confirmations and a twelve-hour cooldown. Group alerts require ten comparable items, ≥30% moving ≥15% in one direction over 24h and two confirmations. At most three automatic intermediate messages per local day. See [SPEC.md](SPEC.md) for the complete behavior.
+Individual alerts require ≥25% **and** ≥0.5 Div movement over six hours, two distinct confirmations and a twelve-hour cooldown. Group alerts require ten comparable items, ≥30% moving ≥15% in one direction over 24h and two confirmations. `alerts.categories` independently selects which item groups can alert; all five are enabled by default. At most three automatic intermediate messages per local day. See [SPEC.md](SPEC.md) for the complete behavior.
 
 ## Run locally
 
@@ -24,13 +24,13 @@ For scheduled operation, supply `GRYT_WEBHOOK_URL` in the process environment an
 
 ## Install the released Docker image
 
-Use Docker Engine with the Compose plugin on Linux/amd64. Node.js, npm and a source checkout are not required. The image is pinned to `0.1.1`; installation needs the release files and the persistent data volume only.
+Use Docker Engine with the Compose plugin on Linux/amd64. Node.js, npm and a source checkout are not required. The image is pinned to `0.2.0`; installation needs the release files and the persistent data volume only.
 
 ```sh
 mkdir -p poe2-economy-reporter
 cd poe2-economy-reporter
-curl -fL https://raw.githubusercontent.com/Inferlopec/poe2-economy-reporter/v0.1.1/compose.yaml -o compose.yaml
-curl -fL https://raw.githubusercontent.com/Inferlopec/poe2-economy-reporter/v0.1.1/.env.example -o .env.example
+curl -fL https://raw.githubusercontent.com/Inferlopec/poe2-economy-reporter/v0.2.0/compose.yaml -o compose.yaml
+curl -fL https://raw.githubusercontent.com/Inferlopec/poe2-economy-reporter/v0.2.0/.env.example -o .env.example
 cp .env.example .env
 # Edit .env with your complete incoming webhook URL.
 docker compose pull
@@ -44,7 +44,7 @@ docker compose logs -f
 
 The non-root `reporter` service gets a writable named volume at `/app/data` with no manual ownership changes. No ports are exposed. Keep the same Compose project directory/name and volume across updates; do not use `docker compose down --volumes` when preserving history and delivery state.
 
-Image: `ghcr.io/inferlopec/poe2-economy-reporter:0.1.1`. Stable releases also update `latest`; explicit version tags make upgrades deliberate. To update, edit the image version in `compose.yaml`, run `docker compose pull`, then `docker compose up -d`. The initial registry image targets Linux/amd64; build from source on other architectures.
+Image: `ghcr.io/inferlopec/poe2-economy-reporter:0.2.0`. Stable releases also update `latest`; explicit version tags make upgrades deliberate. To update, edit the image version in `compose.yaml`, run `docker compose pull`, then `docker compose up -d`. The initial registry image targets Linux/amd64; build from source on other architectures.
 
 ## Build the image from source
 
@@ -53,7 +53,7 @@ For a source checkout, use the explicit build overlay. The default `compose.yaml
 ```sh
 git clone https://github.com/Inferlopec/poe2-economy-reporter.git
 cd poe2-economy-reporter
-git checkout v0.1.1
+git checkout v0.2.0
 cp .env.example .env
 # Edit .env before enabling scheduled delivery.
 docker compose -f compose.yaml -f compose.build.yaml build
@@ -66,7 +66,7 @@ docker compose -f compose.yaml -f compose.build.yaml up -d --build
 Without YAML, built-in defaults apply. To override them, create `config.yaml` from [config.example.yaml](config.example.yaml) and uncomment its read-only mount in Compose. With the image-only installation, download the example once before editing it:
 
 ```sh
-curl -fL https://raw.githubusercontent.com/Inferlopec/poe2-economy-reporter/v0.1.1/config.example.yaml -o config.yaml
+curl -fL https://raw.githubusercontent.com/Inferlopec/poe2-economy-reporter/v0.2.0/config.example.yaml -o config.yaml
 ```
 
 Preserve an existing configuration when updating. Mappings merge with defaults; lists replace them. Unknown keys, duplicate rules, invalid types/ranges and incompatible classifications stop startup.
@@ -78,6 +78,8 @@ docker compose up -d --force-recreate reporter
 ```
 
 Use `classification.overrides` for supported source/item IDs and `sources.disabled` for deliberate omissions. Currency cannot be disabled or reassigned. A new exchange source needs an explicit turnover threshold unless included items all use the boss threshold. Unknown API formats still require an adapter update. Unmatched rules warn; disabled sources take precedence and leave rules dormant.
+
+Use `alerts.categories` to enable a subset of `socketable`, `lineage_supports`, `crafting`, `uniques` and `boss_fragments` for individual and group alerts. It defaults to all five; `[]` disables alert generation for every group. This does not change `daily_report.categories` or market data/history collection. Disabling a category resets its pending confirmations while preserving cooldowns, delivery state and daily limits.
 
 Coverage reductions are printed in reports. Failed/stale sources are never automatically disabled. Mapping/coverage edits cancel old unsent report parts and reset affected evidence; cooldowns, last-alerted prices, reservations and same-day report records survive. Reclassified items need new history. Configuration is global across leagues, while price history and item/group signal identities are league-specific.
 
@@ -97,7 +99,7 @@ Only scheduler and delivery commands need the webhook. Manual/test sends never c
 
 ## Visual checks in a Gryt test channel
 
-Reports use Markdown descriptions with a combined gainers/losers card per category, distinct category icons and accent colors, and compact prices. Rankings, currency and alerts share the same movement styling; oversized sections continue in numbered messages.
+Reports use Markdown descriptions with a combined gainers/losers card per category, distinct category icons and accent colors, and compact prices. Movement rows put the signed percentage, compact price and item name in that order, separated by vertical bars (for example, `🟩 **+28%** | **2.8 Div** | Soul Core of Azcapa`). Daily rankings, currency and individual alerts share that format; oversized sections continue in numbered messages.
 
 The deterministic suite uses production formatters with synthetic data and realistic example names, and marks every card/message `[DEMO]`. It includes the full daily report, currency-only report, all 14 selected Fragments, individual and group alerts in both directions for all five groups, merged alerts with three examples, missing history, empty rankings, reduced/stale coverage, variants/corruption and long names split into numbered parts. It does not wait for real market signals.
 
@@ -144,14 +146,14 @@ Runtime dependencies are `yaml` for YAML parsing and `proper-lockfile` for cross
 
 ## Release preparation
 
-For `0.1.1`, package/lockfile/runtime versions, the Docker label and the Compose image tag must agree. Run the release guard and standard checks before publishing:
+For `0.2.0`, package/lockfile/runtime versions, the Docker label and the Compose image tag must agree. Run the release guard and standard checks before publishing:
 
 ```sh
-node scripts/release-check.mjs v0.1.1
+node scripts/release-check.mjs v0.2.0
 npm ci
 npm run typecheck
 npm test
 npm run build
 ```
 
-Publishing is a separate authorized action: commit the reviewed source on `main`, then create and push the matching `v0.1.1` tag. Tag CI rejects mismatched/unstable versions, verifies source and the built image offline, publishes GHCR tags `0.1.1` and `latest`, then creates the GitHub release with changelog notes. No npm package is published. A workflow failure can leave a published image without GitHub release notes; inspect both jobs before retrying. Registry visibility/access and actual CI execution are verified after publication, not by local checks.
+Publishing is a separate authorized action: commit the reviewed source on `main`, then create and push the matching `v0.2.0` tag. Tag CI rejects mismatched/unstable versions, verifies source and the built image offline, publishes GHCR tags `0.2.0` and `latest`, then creates the GitHub release with changelog notes. No npm package is published. A workflow failure can leave a published image without GitHub release notes; inspect both jobs before retrying. Registry visibility/access and actual CI execution are verified after publication, not by local checks.

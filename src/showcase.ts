@@ -54,6 +54,12 @@ export function showcase(caseId?: string): Showcase {
     true,
   );
   const observations = current(h, c, now);
+  const exalted = observations.find(
+    (o) => o.source === "Currency" && o.id === "exalted",
+  );
+  const exPerDiv = exalted ? 1 / exalted.price : undefined;
+  const formatAlert = (signals: Signal[]) =>
+    alertPayload(signals, c, exPerDiv);
   function item(group: Group, direction: number, index = 0): Signal {
     const samples = observations.filter((o) => o.group === group);
     const o = samples[index % samples.length]!;
@@ -96,24 +102,23 @@ export function showcase(caseId?: string): Showcase {
     add(
       `item-${suffix}`,
       `Individual alerts: ${suffix}, all five groups`,
-      groups.map((g) => alertPayload([item(g, direction)], c)),
+      groups.map((g) => formatAlert([item(g, direction)])),
     );
     add(
       `group-${suffix}`,
       `Group alerts: ${suffix}, all five groups`,
-      groups.map((g) => alertPayload([groupSignal(g, direction)], c)),
+      groups.map((g) => formatAlert([groupSignal(g, direction)])),
     );
   }
   add(
     "combined",
     "Group alert with three notable items, all five groups",
     groups.map((g) =>
-      alertPayload(
+      formatAlert(
         [
           groupSignal(g, 1),
           ...Array.from({ length: 3 }, (_, i) => item(g, 1, i)),
         ],
-        c,
       ),
     ),
   );

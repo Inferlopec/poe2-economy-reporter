@@ -61,6 +61,8 @@ liquidity:
 
 alerts:
   enabled: true
+  # Lists replace defaults. Use [] to disable automatic alerts for every group.
+  categories: [socketable, lineage_supports, crafting, uniques, boss_fragments]
   max_per_day: 3
   max_items_per_message: 3
   confirmation_checks: 2

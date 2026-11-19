@@ -38,6 +38,7 @@ export const defaults = {
   },
   alerts: {
     enabled: true,
+    categories: [...groups] as Group[],
     max_per_day: 3,
     max_items_per_message: 3,
     confirmation_checks: 2,
@@ -108,6 +109,7 @@ export function configure(
     throw Error("Currency is mandatory");
   unique(c.daily_report.categories, groups, "categories");
   if (!c.daily_report.categories.length) throw Error("Empty categories");
+  unique(c.alerts.categories, groups, "alert categories");
   unique(
     c.currency.excluded_ids,
     c.currency.excluded_ids.filter(

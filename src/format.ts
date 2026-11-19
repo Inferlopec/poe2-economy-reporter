@@ -45,6 +45,13 @@ function markdown(text: string): string {
 function movement(p: number | undefined): string {
   return `${p === undefined || !Number.isFinite(p) || p === 0 ? "⚪" : p > 0 ? "🟩" : "🟥"} **${percent(p)}**`;
 }
+function movementRow(
+  p: number | undefined,
+  currentPrice: string,
+  name: string,
+): string {
+  return `${movement(p)} | **${currentPrice}** | ${name}`;
+}
 function categoryCard(group: Group, suffix: string, description: string): Card {
   const style = categoryStyles[group];
   return {
@@ -185,7 +192,11 @@ export function currencyCard(h: History, c: Config, now: number): Card {
         ? change(x.price / y.price, xb.price / yb.price)
         : undefined;
     rows.push(
-      `**${label}** — ${x && y ? `${compact(x.price / y.price)} ${unit}` : "unavailable"} · ${movement(p)}`,
+      movementRow(
+        p,
+        x && y ? `${compact(x.price / y.price)} ${unit}` : "unavailable",
+        markdown(label),
+      ),
     );
   }
   const ranked = items
@@ -197,9 +208,13 @@ export function currencyCard(h: History, c: Config, now: number): Card {
     )
     .sort((a, b) => b.activity - a.activity || a.id.localeCompare(b.id))
     .slice(0, c.currency.top_by_volume);
-  const extra = ranked.map((o, i) => {
+  const extra = ranked.map((o) => {
     const b = baseline(o, h, 24, c);
-    return `**${i + 1}.** ${itemName(o)} — ${price(o.price, ex ? 1 / ex.price : undefined)} · ${movement(b ? change(o.price, b.price) : undefined)}`;
+    return movementRow(
+      b ? change(o.price, b.price) : undefined,
+      price(o.price, ex ? 1 / ex.price : undefined),
+      itemName(o),
+    );
   });
   return {
     title: `${currencyStyle.icon} Currency rates — 24h`,
@@ -247,12 +262,12 @@ export function report(
             (x, y) => (y.p - x.p) * direction || x.o.key.localeCompare(y.o.key),
           )
           .slice(0, c.daily_report.top_movers);
-        return `**${direction > 0 ? "Gainers" : "Losers"}**\n\n${selected.map(({ o, p }) => `${movement(p)} · ${itemName(o)} — ${price(o.price, ex ? 1 / ex.price : undefined)}`).join("  \n") || "Unavailable / no eligible movements"}`;
+        return `**${direction > 0 ? "Gainers" : "Losers"}**\n\n${selected.map(({ o, p }) => movementRow(p, price(o.price, ex ? 1 / ex.price : undefined), itemName(o))).join("  \n") || "Unavailable / no eligible movements"}`;
       });
       cards.push(
         categoryCard(
           g,
-          "Market movements · 24h",
+          "Market movements | 24h",
           withCoverage(sections.join("\n\n"), c, g),
         ),
       );
@@ -262,9 +277,13 @@ export function report(
         .filter((o) => o.group === g)
         .sort((a, b) => b.price - a.price || a.key.localeCompare(b.key))
         .slice(0, c.daily_report.top_expensive);
-      const rows = a.map((o, i) => {
+      const rows = a.map((o) => {
         const b = baseline(o, h, 24, c);
-        return `**${i + 1}.** ${itemName(o)} — ${price(o.price, ex ? 1 / ex.price : undefined)} · ${movement(b ? change(o.price, b.price) : undefined)}`;
+        return movementRow(
+          b ? change(o.price, b.price) : undefined,
+          price(o.price, ex ? 1 / ex.price : undefined),
+          itemName(o),
+        );
       });
       cards.push(
         categoryCard(
@@ -281,7 +300,11 @@ export function report(
   }
   return split(cards);
 }
-export function alertPayload(selected: Signal[], c: Config): Payload {
+export function alertPayload(
+  selected: Signal[],
+  c: Config,
+  exPerDiv?: number,
+): Payload {
   const cards: Card[] = [];
   let lastGroup: Group | undefined;
   for (const s of selected) {
@@ -289,8 +312,8 @@ export function alertPayload(selected: Signal[], c: Config): Payload {
     const source = markdown(s.source.replace(/([a-z])([A-Z])/g, "$1 $2"));
     const body =
       s.count !== undefined
-        ? `${s.direction > 0 ? "🟩" : "🟥"} **${s.count}/${s.denominator} items** moved ${s.direction > 0 ? "up" : "down"} by at least **${compact(Math.abs(s.percent), 1)}%** over **${window}**`
-        : `${movement(s.percent)} · ${markdown(s.name)} — ${compact(s.price!, 3)} Div  \nBaseline: ${compact(s.baseline!, 3)} Div → ${compact(s.price!, 3)} Div · Window: **${window}** · Source: ${source}`;
+        ? `${s.direction > 0 ? "🟩" : "🟥"} **${s.count}/${s.denominator} items** | moved ${s.direction > 0 ? "up" : "down"} by at least **${compact(Math.abs(s.percent), 1)}%** | over **${window}**`
+        : `${movementRow(s.percent, price(s.price!, exPerDiv), markdown(s.name))}  \nBaseline: ${price(s.baseline ?? NaN, exPerDiv)} → ${price(s.price!, exPerDiv)} | Window: **${window}** | Source: ${source}`;
     if (lastGroup === s.group)
       cards[cards.length - 1]!.description += `\n\n${body}`;
     else {

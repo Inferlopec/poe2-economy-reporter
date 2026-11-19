@@ -1,6 +1,6 @@
 services:
   reporter:
-    image: ghcr.io/inferlopec/poe2-economy-reporter:0.1.1
+    image: ghcr.io/inferlopec/poe2-economy-reporter:0.2.0
     restart: unless-stopped
     environment:
       GRYT_WEBHOOK_URL: ${GRYT_WEBHOOK_URL:-}

@@ -7,7 +7,7 @@ COPY src ./src
 RUN npm run build && npm prune --omit=dev
 
 FROM node:24-bookworm-slim
-ARG VERSION=0.1.1
+ARG VERSION=0.2.0
 LABEL org.opencontainers.image.version=$VERSION \
       org.opencontainers.image.source="https://github.com/Inferlopec/poe2-economy-reporter"
 ENV NODE_ENV=production DATA_DIR=/app/data CONFIG_PATH=/app/config.yaml

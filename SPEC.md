@@ -4,7 +4,7 @@
 
 One instance sends an English-language daily Path of Exile 2 economy report and limited significant alerts to one Gryt channel. Source: poe.ninja. One Node.js process, one container, one persistent volume at `/app/data`. No inbound ports, database, external scheduler, LLM, bot SDK, plugin, web UI, chat commands, trading advice, item appraisal or farming-profit estimates.
 
-The review decisions below are accepted. MVP implementation was authorized in the implementation session on 2026-11-18. Application, commands, Docker/Compose and CI now accompany this specification; version 0.1.1 updates report presentation without changes to market analysis, filtering, scheduling or delivery. External publication and real webhook sends still require authorization.
+The review decisions below are accepted. MVP implementation was authorized in the implementation session on 2026-11-18. Application, commands, Docker/Compose and CI now accompany this specification. Follow-up presentation and alert-category configuration updates do not change market analysis, thresholds or architecture. External publication and real webhook sends still require authorization.
 
 ## Source classification
 
@@ -76,7 +76,7 @@ Apply thresholds to current observations and, for changes, baselines. Normalize 
 | Boss Fragments, regardless of containing source | 10 Div turnover |
 | All eight unique types | 30 listings |
 
-These provisional noise filters do not guarantee reliable prices: an expensive trade can meet turnover thresholds. The reviewed single-league sample retained 15/121 Runes, 4/48 Soul Cores and 2/34 Idols at 10 Div, and 5/51 Essences at 5 Div. Short rankings are expected. Boss defaults must be checked against representative data before implementation; document any necessary change before implementing it.
+These noise filters do not guarantee reliable prices: an expensive trade can meet turnover thresholds. Short rankings are expected.
 
 ## Daily report
 
@@ -87,28 +87,28 @@ Default 09:00 Europe/Riga, once per local calendar day after fresh complete data
 - Three fixed pairs: Divine/Exalted, Chaos/Exalted, Mirror/Divine, with 24h changes. Show unavailable for invalid/missing pair data rather than invent values.
 - Up to 10 additional eligible `Currency` entries by current Div turnover descending, then stable ID. Omit duplicate Divine, Chaos and Mirror rows represented by anchor pairs; Exalted may remain in this ranking.
 - Exclude base Orb of Transmutation and Orb of Augmentation by verified IDs (`transmute`, `aug` in the reviewed response). Do not automatically exclude improved Greater/Perfect versions. Make the exclusion ID list configurable.
-- Each ranked row: name, current price, signed 24h change or `—`. Turnover selects the ranking but need not be printed. Anchor changes compare pair rates; additional ranked currencies compare their Div prices.
+- Each additional ranked row shows signed 24h change or `—`, current price and name. Turnover selects the ranking but need not be printed. Anchor changes compare pair rates; additional ranked currencies compare their Div prices.
 - All Currency entries are confined to this block and the manual currency command; no item rankings or automated Currency alerts.
 
 ### Block 2 — Market movements
 
 - For each of `socketable`, `lineage_supports`, `crafting`, `uniques`: top 5 positive and top 5 negative 24h changes, ordered by percentage after filtering, stable ID for ties.
-- Each row: name/variant, current price and signed change. Never pad with unchanged or ineligible entries.
+- Each row: signed change, current price and name/variant. Never pad with unchanged or ineligible entries.
 - Optional short factual summary produced deterministically from supported movements.
 
 ### Block 3 — Most expensive items and Boss Fragments
 
 - Separate top 10 for each of the four item groups, plus a dedicated top 10 Boss Fragments/access-items section. Sort by current Div price descending, then stable ID.
-- Each row: name/variant, price, signed 24h change or `—`.
+- Each row: signed 24h change or `—`, price and name/variant.
 - Boss Fragments gets this expensive ranking and automatic alerts; no additional daily gainers/losers section is required.
 
-Presentation uses one Markdown description card per movement category, containing both **Gainers** and **Losers** sections; oversized categories may continue onto labeled cards. Rows put the colored movement marker and bold signed percentage first, followed by the item name and compact price. Each item category has its own icon, human-readable title and accent color, shared by rankings and alerts. Currency uses the same compact numbers and movement styling; group alerts describe the affected fraction rather than implying an aggregate price change. Presentation does not change item selection, tie-breaking, thresholds, source eligibility or delivery semantics.
+Presentation uses one Markdown description card per movement category, containing both **Gainers** and **Losers** sections; oversized categories may continue onto labeled cards. Movement rows use `🟩 **+28%** | **2.8 Div** | Soul Core of Azcapa` or `🟥 **−19%** | **1.4 Div** | Greater Desert Rune`: signed percentage first, compact price second, item name/variant third, with vertical separators. The same row format applies to currency rates, currency rankings, expensive rankings and individual alerts; unavailable comparisons use `⚪ **—**`. Each item category has its own icon, human-readable title and accent color, shared by rankings and alerts. Group alerts describe the affected fraction rather than implying an aggregate price change. Presentation does not change item selection, tie-breaking, thresholds, source eligibility or delivery semantics.
 
 Three logical blocks, up to 90 item-ranking rows plus three fixed pairs and ten currency rows. Physical cards/messages may differ: split at group boundaries or labeled continuation sections, number parts, preserve ordering and all eligible rows. Never silently truncate rankings or names.
 
 ## Intermediate alerts
 
-Rules cover all five item groups, including Boss Fragments; Currency is excluded.
+Rules cover all five item groups, including Boss Fragments; Currency is excluded. Optional `alerts.categories` independently selects which item groups may produce individual and group alerts. It defaults to all five groups. Disabled categories keep collecting market data and history but do not produce new alerts; their pending item/group confirmations are reset. Cooldowns, queued/sent/unknown delivery state and daily alert reservations are preserved. An empty list disables alert generation for every group. This setting is independent of `daily_report.categories`.
 
 ### Individual items — all conditions required
 
@@ -144,7 +144,7 @@ Rules cover all five item groups, including Boss Fragments; Currency is excluded
 
 ## Configuration and commands
 
-`config.example.yaml` defines accepted defaults. YAML is optional; deep-merge known mappings, replace explicitly supplied lists, reject unknown keys/types/ranges. Changes apply on restart. English and seven-day retention are fixed; no `language` or `history_days` option.
+`config.example.yaml` defines accepted defaults. YAML is optional; deep-merge known mappings, replace explicitly supplied lists, reject unknown keys/types/ranges. `alerts.categories` accepts only `socketable`, `lineage_supports`, `crafting`, `uniques` and `boss_fragments`; it defaults to all five. It independently controls intermediate alert groups and does not affect `daily_report.categories` or source collection/history. Changes apply on restart. English and seven-day retention are fixed; no `language` or `history_days` option.
 
 Timezone precedence: explicit YAML `timezone` > nonempty environment `TZ` > Europe/Riga. The only required normal-deployment setting is environment `GRYT_WEBHOOK_URL`. Never put it in YAML, logs or history. Validate URL, IANA zones and `HH:MM` time at startup. Locally read optional `./config.yaml`; the planned container uses optional `/app/config.yaml`. Missing file uses defaults; malformed/invalid file stops startup.
 
@@ -169,18 +169,9 @@ Only scheduler, `send-test` and `report-currency` require a webhook. Test implem
 - Deterministic fixtures/mocked-network tests cover conversion direction and differing source rates; filtering, mixed IDs and variants; classification includes/exclusions, duplicate/incompatible rules, unmatched/dormant IDs, source disabling/disclosure, coverage changes and preserved cooldowns/counters; all rankings including Currency and Boss Fragments; horizon edges, unchanged/304/stale/missing data; both alert directions/boundaries, confirmation gaps, denominator/rearming, cap, league changes, DST, restart/corruption, ambiguous delivery and payload splitting.
 - MVP handoff requires typechecking, tests, production build and Docker demo if available. Preserve all eligible report rows and prove demo/read-only commands cannot send or modify production state.
 
-## Verification and remaining source checks
+## References
 
-Review date: 2026-11-18. Sources: [poe.ninja API documentation](https://poe.ninja/docs/api), representative Forbidden Rites API responses, [Gryt webhook documentation](https://docs.gryt.chat/docs/build/webhooks), [OpenAPI](https://github.com/Gryt-chat/server/blob/main/openapi/webhooks.json) and [POST handler](https://github.com/Gryt-chat/server/blob/main/src/routes/webhooks.ts).
-
-Representative responses were checked for Currency, Runes, SoulCores, Idols, LineageSupportGems, Essences, Ritual, Breach, Delirium, Abyss, Verisium and all eight included unique types. The initial documentation review had not yet sampled Fragments, UncutGems, Expedition or PrecursorTablets; the implementation verification below supersedes that gap. Source generation time, turnover window and a real multi-variant example remain unverified. Actual deployed Gryt compatibility has not been tested; current upstream limits do not guarantee behavior on every self-hosted version. No live webhook was called.
-
-### Implementation verification (2026-11-18)
-
-Compact representative fixtures now cover every source in the implemented registry, including Fragments, UncutGems, Expedition and PrecursorTablets. Exchange metadata is joined from top-level `items` (reference currencies also appear in `core.items`). Conversion multiplies primary values by `core.rates.divine` when primary is not Divine; Divine primary uses a factor of one. A synthetic non-Divine fixture verifies this direction. Real Currency and UniqueWeapons samples use different rates. Synthetic variants exercise identity separation; a representative real multi-variant identity remains unverified.
-
-The user subsequently supplied an explicit screenshot selection of 14 Fragments entries (listed in Source classification). All 14 names map to exact IDs in the retained representative response; all 14 pass the unchanged 10 Div activity threshold in that fixture. Together with the two retained Ritual/Breach entries, default membership is 16 identities. Audience remains below the threshold in that fixture (1.77 Div), leaving 15 eligible current entries; historical baselines and confirmation conditions are still required for alerts. Group alerts retain their ten-item minimum.
-
-Historical purpose evidence remains the official [0.1.1 notes](https://www.pathofexile.com/forum/view-thread/3696353), official [0.1.1c notes](https://www.pathofexile.com/forum/view-thread/3717308), and a player [Trialmaster door report](https://www.pathofexile.com/forum/view-thread/3641088). These do not establish exhaustive current-league boss coverage. The user's explicit list now defines the intended Fragments coverage; external purpose research is not a blocker for implementing that selection.
-
-Gryt OpenAPI and the POST handler were retrieved and limits verified; the schema is retained as a test fixture. No actual deployed-server webhook compatibility or delivery was tested. YAML parsing and robust heartbeat-based filesystem locking use `yaml` and `proper-lockfile`; the latter provides crash recovery beyond exclusive file creation. Optional factual market summaries are omitted.
+- [poe.ninja API documentation](https://poe.ninja/docs/api)
+- [Gryt webhook documentation](https://docs.gryt.chat/docs/build/webhooks)
+- [Gryt webhook OpenAPI](https://github.com/Gryt-chat/server/blob/main/openapi/webhooks.json)
+- [Gryt webhook POST handler](https://github.com/Gryt-chat/server/blob/main/src/routes/webhooks.ts)

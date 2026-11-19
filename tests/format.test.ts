@@ -96,15 +96,15 @@ test("one movement card per category contains both directions in the requested M
   assert.equal(movement.length, 1);
   assert.equal(
     movement[0].title,
-    "🔮 Socketable Currency — Market movements · 24h",
+    "🔮 Socketable Currency — Market movements | 24h",
   );
   assert.match(
     movement[0].description,
-    /\*\*Gainers\*\*\n\n🟩 \*\*\+28%\*\* · Body Rune — 2\.8 Div/,
+    /\*\*Gainers\*\*\n\n🟩 \*\*\+28%\*\* \| \*\*2\.8 Div\*\* \| Body Rune/,
   );
   assert.match(
     movement[0].description,
-    /\*\*Losers\*\*\n\n🟥 \*\*−19%\*\* · Mind Rune — 1\.4 Div/,
+    /\*\*Losers\*\*\n\n🟥 \*\*−19%\*\* \| \*\*1\.4 Div\*\* \| Mind Rune/,
   );
   assert.ok(!movement[0].description.includes("Ancient Rune of the Titan"));
   assert.ok(cards.every((c) => c.fields === undefined));
@@ -162,35 +162,42 @@ test("currency cards use clear pair units, compact rates and the same ranked-row
   const card = currencyCard(h, c, now);
   assert.equal(card.title, "💰 Currency rates — 24h");
   assert.equal(card.color, "#EAB308");
-  assert.match(card.description, /\*\*Divine \/ Exalted\*\* — 500 Ex per Div/);
-  assert.match(card.description, /\*\*Chaos \/ Exalted\*\* — 50 Ex per Chaos/);
   assert.match(
     card.description,
-    /\*\*Mirror \/ Divine\*\* — 800 Div per Mirror/,
+    /⚪ \*\*0%\*\* \| \*\*500 Ex per Div\*\* \| Divine \/ Exalted/,
   );
   assert.match(
     card.description,
-    /\*\*1\.\*\* .* — \d+(?:\.\d+)? (?:Ex|Div) · ⚪ \*\*0%\*\*/,
+    /⚪ \*\*0%\*\* \| \*\*50 Ex per Chaos\*\* \| Chaos \/ Exalted/,
+  );
+  assert.match(
+    card.description,
+    /⚪ \*\*0%\*\* \| \*\*800 Div per Mirror\*\* \| Mirror \/ Divine/,
+  );
+  assert.match(
+    card.description,
+    /⚪ \*\*0%\*\* \| \*\*\d+(?:\.\d+)? (?:Ex|Div)\*\* \| /,
   );
   assert.doesNotMatch(card.description, /\d+\.0+(?: Div| Ex|%)/);
 });
 
-test("expensive rankings preserve price order, numbering and unavailable changes", () => {
+test("expensive rankings preserve price order and unavailable changes", () => {
   const { c, h, now } = example();
   h.observations = [];
   const rank = report(h, c, now)
     .flatMap((p) => p.cards)
     .find((c) => c.title.endsWith("Most expensive"));
-  assert.equal(
-    rank.description.split("\n\n").at(-1).split("\n")[0].trimEnd(),
-    "**1.** Ancient Rune of the Titan — 8 Div · ⚪ **—**",
-  );
   const lines = rank.description
     .split("\n")
-    .filter((line) => /^\*\*\d+/.test(line));
+    .map((line) => line.trimEnd())
+    .filter((line) => /^(?:🟩|🟥|⚪) \*\*/.test(line));
   assert.equal(lines.length, 3);
-  assert.ok(lines[1].startsWith("**2.** Body Rune — 2.8 Div"));
-  assert.ok(lines[2].startsWith("**3.** Mind Rune — 1.4 Div"));
+  assert.equal(
+    lines[0],
+    "⚪ **—** | **8 Div** | Ancient Rune of the Titan",
+  );
+  assert.ok(lines[1].startsWith("⚪ **—** | **2.8 Div** | Body Rune"));
+  assert.ok(lines[2].startsWith("⚪ **—** | **1.4 Div** | Mind Rune"));
 });
 
 test("alerts retain actual baseline, interval, source and selected order with category styling", () => {
@@ -207,24 +214,35 @@ test("alerts retain actual baseline, interval, source and selected order with ca
     signal("socketable", { name: "Mind Rune", interval: 6.25 }),
   ];
   const before = JSON.stringify(selected);
-  const payload = alertPayload(selected, c);
+  const payload = alertPayload(selected, c, 500);
   assert.equal(payload.cards.length, 3);
   assert.match(
     payload.cards[0].description,
-    /🟩 \*\*\+28%\*\* · Body Rune — 2\.8 Div/,
+    /🟩 \*\*\+28%\*\* \| \*\*2\.8 Div\*\* \| Body Rune/,
   );
   assert.match(
     payload.cards[0].description,
-    /Baseline: 2\.188 Div → 2\.8 Div · Window: \*\*6h\*\* · Source: Runes/,
+    /Baseline: 2\.19 Div → 2\.8 Div \| Window: \*\*6h\*\* \| Source: Runes/,
   );
   assert.match(
     payload.cards[1].description,
-    /🟥 \*\*−19%\*\* · Headhunter — 1\.4 Div/,
+    /🟥 \*\*−19%\*\* \| \*\*1\.4 Div\*\* \| Headhunter/,
   );
   assert.match(payload.cards[1].description, /Unique Accessories/);
   assert.match(payload.cards[2].description, /\*\*6\.25h\*\*/);
   assert.equal(JSON.stringify(selected), before);
   validate(payload);
+});
+
+test("individual alerts use compact Ex prices for sub-Div items", () => {
+  const c = configure({}, {});
+  const card = alertPayload(
+    [signal("socketable", { price: 0.5, baseline: 0.4, percent: 25 })],
+    c,
+    500,
+  ).cards[0]!;
+  assert.match(card.description, /🟩 \*\*\+25%\*\* \| \*\*250 Ex\*\* \| Body Rune/);
+  assert.match(card.description, /Baseline: 200 Ex → 250 Ex/);
 });
 
 test("group alerts distinguish an affected share from a price change and preserve reduced coverage", () => {
@@ -240,7 +258,7 @@ test("group alerts distinguish an affected share from a price change and preserv
   const card = alertPayload([group], c).cards[0];
   assert.match(
     card.description,
-    /🟥 \*\*6\/14 items\*\* moved down by at least \*\*15%\*\* over \*\*24h\*\*/,
+    /🟥 \*\*6\/14 items\*\* \| moved down by at least \*\*15%\*\* \| over \*\*24h\*\*/,
   );
   assert.match(card.description, /Reduced coverage; excluded sources: Idols/);
   assert.doesNotMatch(card.description, /Baseline|−15%/);
@@ -263,13 +281,13 @@ test("external item names and variants are escaped as Markdown text", () => {
 
 test("split preserves styling, numbering and every Unicode character at payload limits", () => {
   const description = (
-    "🟩 **+28%** · " +
+    "🟩 **+28%** | **2.8 Div** | " +
     "𐐀".repeat(2200) +
-    " — 2.8 Div\n"
+    "\n"
   ).repeat(3);
   const parts = split([
     {
-      title: "🔮 Socketable Currency — Market movements · 24h",
+      title: "🔮 Socketable Currency — Market movements | 24h",
       color: "#8B5CF6",
       description,
     },

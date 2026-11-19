@@ -83,6 +83,23 @@ test("configuration defaults, merge, lists and timezone", () => {
   assert.equal(x.liquidity.exchange_min_volume_divine["Currency"], 20);
   assert.equal(x.liquidity.exchange_min_volume_divine["Runes"], 50);
   assert.deepEqual(x.currency.excluded_ids, ["foo"]);
+  assert.deepEqual(configure({}, {}).alerts.categories, [
+    "socketable",
+    "lineage_supports",
+    "crafting",
+    "uniques",
+    "boss_fragments",
+  ]);
+  const independent = configure(
+    {
+      daily_report: { categories: ["socketable"] },
+      alerts: { categories: ["boss_fragments"] },
+    },
+    {},
+  );
+  assert.deepEqual(independent.daily_report.categories, ["socketable"]);
+  assert.deepEqual(independent.alerts.categories, ["boss_fragments"]);
+  assert.deepEqual(configure({ alerts: { categories: [] } }, {}).alerts.categories, []);
   assert.equal(
     configure({ timezone: "Europe/Riga" }, { TZ: "UTC" }).timezone,
     "Europe/Riga",
@@ -97,6 +114,8 @@ for (const invalid of [
   { freshness: { max_unchanged_hours: 0.5 } },
   { daily_report: { time: "24:00" } },
   { daily_report: { categories: [] } },
+  { alerts: { categories: ["not-a-category"] } },
+  { alerts: { categories: ["uniques", "uniques"] } },
   { alerts: { max_per_day: 4 } },
   { alerts: { confirmation_checks: 1 } },
   { alerts: { category: { min_affected_percent: 101 } } },
@@ -370,6 +389,67 @@ test("individual confirmation, duplicate, cooldown, repeat-price and restart", (
   recover(s);
   assert.ok(Object.values(s.memory).every((m) => !m.pending));
 });
+test("alert categories gate item and group alerts and reset only disabled confirmations", () => {
+  const { h, c: config, now } = demo({
+    daily_report: { categories: ["socketable"] },
+    alerts: { categories: ["uniques"] },
+  });
+  const state = emptyState();
+  const disabledItem = h.observations.find((o) => o.group === "socketable")!;
+  const itemKey = `${h.league}:item:${disabledItem.key}`;
+  const groupKey = `${h.league}:group:socketable:1`;
+  state.memory[itemKey] = {
+    lastAt: now - 1000,
+    lastPrice: 4,
+    pending: { direction: 1, count: 1, evidence: "pending-item", at: now },
+  };
+  state.memory[groupKey] = {
+    lastAt: now - 2000,
+    armed: false,
+    pending: { direction: 1, count: 1, evidence: "pending-group", at: now },
+  };
+  state.alerts.push({
+    day: "2026-01-15",
+    expires: now + HOUR,
+    signals: [],
+    part: { payload: { text: "already reserved" }, status: "unknown" },
+  });
+
+  const out = signals(h, config, state, now);
+  assert.ok(out.every((signal) => signal.group === "uniques"));
+  assert.equal(state.memory[itemKey]!.pending, undefined);
+  assert.equal(state.memory[itemKey]!.lastAt, now - 1000);
+  assert.equal(state.memory[itemKey]!.lastPrice, 4);
+  assert.equal(state.memory[groupKey]!.pending, undefined);
+  assert.equal(state.memory[groupKey]!.lastAt, now - 2000);
+  assert.equal(state.memory[groupKey]!.armed, false);
+  assert.equal(state.alerts.length, 1);
+  assert.equal(state.alerts[0]!.part.status, "unknown");
+});
+test("reclassified items confirm in an enabled category despite retained disabled-category history", () => {
+  const config = configure({
+    classification: {
+      overrides: [{ source: "Runes", id: "rune", group: "crafting" }],
+    },
+    alerts: { categories: ["crafting"] },
+  }, {});
+  const h = emptyHistory("L");
+  const state = emptyState();
+  ingest(h, "Runes", raw(1), now - 12 * HOUR, c);
+  ingest(h, "Runes", raw(1.01), now - 6 * HOUR, config);
+  ingest(h, "Runes", raw(2), now, config);
+  ingest(h, "Currency", raw(1, 100, "divine"), now, config);
+  const key = `L:item:${h.sources.Runes!.observations[0]!.key}`;
+
+  assert.ok(h.observations.some((o) => o.group === "socketable"));
+  assert.equal(signals(h, config, state, now).length, 0);
+  assert.equal(state.memory[key]!.pending!.count, 1);
+
+  ingest(h, "Runes", raw(2.1), now + HOUR, config);
+  const confirmed = signals(h, config, state, now + HOUR);
+  assert.equal(state.memory[key]!.pending!.count, 2);
+  assert.ok(confirmed.some((signal) => signal.key === key && signal.group === "crafting"));
+});
 test("group denominator rounds upward and rearming persists", () => {
   const { h, c, now } = demo();
   const s = emptyState();
@@ -608,9 +688,18 @@ test("check and stored preview are read-only and never contact Gryt", async () =
 test("currency anchor ratios use the pair, independent of Div-price change", () => {
   const { h, c, now } = demo();
   const text = currencyCard(h, c, now).description!;
-  assert.match(text, /Divine \/ Exalted\*\* — 500 Ex per Div/);
-  assert.match(text, /Chaos \/ Exalted\*\* — 50 Ex per Chaos/);
-  assert.match(text, /Mirror \/ Divine\*\* — 800 Div per Mirror/);
+  assert.match(
+    text,
+    /⚪ \*\*0%\*\* \| \*\*500 Ex per Div\*\* \| Divine \/ Exalted/,
+  );
+  assert.match(
+    text,
+    /⚪ \*\*0%\*\* \| \*\*50 Ex per Chaos\*\* \| Chaos \/ Exalted/,
+  );
+  assert.match(
+    text,
+    /⚪ \*\*0%\*\* \| \*\*800 Div per Mirror\*\* \| Mirror \/ Divine/,
+  );
 });
 test("report timer can publish between refreshes without advancing alert evidence", async () => {
   const { h, c, now } = demo();
@@ -787,10 +876,11 @@ test("selected Fragments support top-ten ranking and a confirmed group alert wit
     .slice(0, 10);
   const rows = ranking
     .description!.split("\n")
-    .filter((line) => /^\*\*\d+\.\*\*/.test(line));
+    .map((line) => line.trimEnd())
+    .filter((line) => /^(?:🟩|🟥|⚪) \*\*/.test(line));
   assert.equal(rows.length, 10);
   expected.forEach((o, i) =>
-    assert.ok(rows[i]!.startsWith(`**${i + 1}.** ${o.name} —`)),
+    assert.ok(rows[i]!.endsWith(` | ${o.name}`)),
   );
 });
 
