@@ -79,6 +79,8 @@ docker compose up -d --force-recreate reporter
 
 Use `classification.overrides` for supported source/item IDs and `sources.disabled` for deliberate omissions. Currency cannot be disabled or reassigned. A new exchange source needs an explicit turnover threshold unless included items all use the boss threshold. Unknown API formats still require an adapter update. Unmatched rules warn; disabled sources take precedence and leave rules dormant.
 
+Daily gainers and losers must move by at least 0.1 Div and 10% over 24 hours. Use `daily_report.mover_thresholds` to adjust either minimum for an individual category.
+
 Use `alerts.categories` to enable a subset of `socketable`, `lineage_supports`, `crafting`, `uniques` and `boss_fragments` for individual and group alerts. It defaults to all five; `[]` disables alert generation for every group. This does not change `daily_report.categories` or market data/history collection. Disabling a category resets its pending confirmations while preserving cooldowns, delivery state and daily limits.
 
 Coverage reductions are printed in reports. Failed/stale sources are never automatically disabled. Mapping/coverage edits cancel old unsent report parts and reset affected evidence; cooldowns, last-alerted prices, reservations and same-day report records survive. Reclassified items need new history. Configuration is global across leagues, while price history and item/group signal identities are league-specific.

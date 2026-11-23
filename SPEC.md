@@ -92,7 +92,8 @@ Default 09:00 Europe/Riga, once per local calendar day after fresh complete data
 
 ### Block 2 — Market movements
 
-- For each of `socketable`, `lineage_supports`, `crafting`, `uniques`: top 5 positive and top 5 negative 24h changes, ordered by percentage after filtering, stable ID for ties.
+- For each of `socketable`, `lineage_supports`, `crafting`, `uniques`: up to 5 gainers and 5 losers over 24h, ordered by percentage after filtering, stable ID for ties.
+- Require qualifying activity, a valid 24h baseline, and movement meeting both minimum magnitudes before display rounding. Defaults are 0.1 Div and 10% of the baseline price in either direction. Override either minimum by category under `daily_report.mover_thresholds` using `min_change_divine` or `min_change_percent`. These settings apply only to this block.
 - Each row: signed change, current price and name/variant. Never pad with unchanged or ineligible entries.
 - Optional short factual summary produced deterministically from supported movements.
 

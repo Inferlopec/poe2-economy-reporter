@@ -115,6 +115,13 @@ for (const invalid of [
   { freshness: { max_unchanged_hours: 0.5 } },
   { daily_report: { time: "24:00" } },
   { daily_report: { categories: [] } },
+  {
+    daily_report: {
+      mover_thresholds: { boss_fragments: { min_change_percent: 10 } },
+    },
+  },
+  { daily_report: { mover_thresholds: { uniques: { min_change_divine: 0 } } } },
+  { daily_report: { mover_thresholds: { crafting: { min_change_percent: "10" } } } },
   { alerts: { categories: ["not-a-category"] } },
   { alerts: { categories: ["uniques", "uniques"] } },
   { alerts: { max_per_day: 4 } },

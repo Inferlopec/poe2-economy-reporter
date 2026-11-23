@@ -251,11 +251,22 @@ export function report(
     for (const g of c.daily_report.categories.filter(
       (g) => g !== "boss_fragments",
     )) {
+      const thresholds = c.daily_report.mover_thresholds[g];
       const a = obs
         .filter((o) => o.group === g)
         .flatMap((o) => {
           const b = baseline(o, h, 24, c);
-          return b ? [{ o, p: change(o.price, b.price) }] : [];
+          if (!b) return [];
+          const magnitude = Math.abs(o.price - b.price);
+          const minimum = Math.max(
+            thresholds.min_change_divine,
+            b.price * (thresholds.min_change_percent / 100),
+          );
+          // Account for subtraction error at the inclusive threshold.
+          const tolerance = Number.EPSILON * Math.max(o.price, b.price);
+          return magnitude + tolerance >= minimum
+            ? [{ o, p: change(o.price, b.price) }]
+            : [];
         });
       const sections = [1, -1].map((direction) => {
         const selected = a

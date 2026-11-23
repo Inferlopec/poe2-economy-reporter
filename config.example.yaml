@@ -36,6 +36,12 @@ daily_report:
   top_expensive: 10
   # Boss Fragments has an expensive ranking, not daily movers.
   categories: [socketable, lineage_supports, crafting, uniques, boss_fragments]
+  # Both thresholds must be met for gainers and losers.
+  mover_thresholds:
+    socketable: { min_change_divine: 0.1, min_change_percent: 10 }
+    lineage_supports: { min_change_divine: 0.1, min_change_percent: 10 }
+    crafting: { min_change_divine: 0.1, min_change_percent: 10 }
+    uniques: { min_change_divine: 0.1, min_change_percent: 10 }
 
 currency:
   # Additional currency rows; the three fixed pairs are separate.

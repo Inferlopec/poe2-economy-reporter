@@ -16,6 +16,17 @@ import {
 import { current, ingest } from "../dist/market.js";
 import { emptyHistory, HOUR } from "../dist/model.js";
 
+function marketData(rows) {
+  return {
+    core: {
+      primary: "divine",
+      rates: { exalted: 500, chaos: 10 },
+      items: rows.map((r) => ({ id: r.id, name: r.name })),
+    },
+    lines: rows.map((r) => ({ volumePrimaryValue: 100, ...r })),
+  };
+}
+
 function example() {
   const c = configure(
     {
@@ -26,24 +37,16 @@ function example() {
   );
   const h = emptyHistory("Example League");
   const now = Date.UTC(2026, 0, 15, 9);
-  const data = (rows) => ({
-    core: {
-      primary: "divine",
-      rates: { exalted: 500, chaos: 10 },
-      items: rows.map((r) => ({ id: r.id, name: r.name })),
-    },
-    lines: rows.map((r) => ({ ...r, volumePrimaryValue: 100 })),
-  });
   const old = [
     { id: "body-rune", name: "Body Rune", primaryValue: 2.1875 },
     { id: "mind-rune", name: "Mind Rune", primaryValue: 1.4 / 0.81 },
     { id: "stable", name: "Ancient Rune of the Titan", primaryValue: 8 },
   ];
-  ingest(h, "Runes", data(old), now - 24 * HOUR, c);
+  ingest(h, "Runes", marketData(old), now - 24 * HOUR, c);
   ingest(
     h,
     "Runes",
-    data(
+    marketData(
       old.map((r) => ({
         ...r,
         primaryValue:
@@ -60,7 +63,7 @@ function example() {
   ingest(
     h,
     "Currency",
-    data([
+    marketData([
       { id: "divine", name: "Divine Orb", primaryValue: 1 },
       { id: "exalted", name: "Exalted Orb", primaryValue: 0.002 },
       { id: "chaos", name: "Chaos Orb", primaryValue: 0.1 },
@@ -108,6 +111,71 @@ test("one movement card per category contains both directions in the requested M
   );
   assert.ok(!movement[0].description.includes("Ancient Rune of the Titan"));
   assert.ok(cards.every((c) => c.fields === undefined));
+});
+
+test("daily movers require both thresholds in either direction before ranking", () => {
+  const { c, h, now } = example();
+  const moves = [
+    ["Cheap jump", 0.001, 0.0224],
+    ["Cheap drop", 0.05, 0.001],
+    ["Small percentage", 10, 10.5],
+    ["Just below ten percent", 2, 2.1999],
+    ["Just below tenth of a Divine", 0.5, 0.5999],
+    ["Boundary gainer", 1, 1.1],
+    ["Boundary loser", 1, 0.9],
+    ["Major collapse", 2, 0.05],
+    ["Larger gain", 1, 1.5],
+  ] as const;
+  for (const [at, priceIndex] of [[now - 24 * HOUR, 1], [now, 2]] as const)
+    ingest(
+      h,
+      "Runes",
+      marketData(
+        moves.map((move, index) => ({
+          id: `mover-${index}`,
+          name: move[0],
+          primaryValue: move[priceIndex],
+        })),
+      ),
+      at,
+      c,
+    );
+  const cards = (config) => report(h, config, now).flatMap((p) => p.cards);
+  const movement = (config) =>
+    cards(config).find((card) => card.title.includes("Market movements")).description;
+  const expensive = (config) =>
+    cards(config).find((card) => card.title.includes("Most expensive")).description;
+
+  const result = movement(c);
+  for (const [name] of moves.slice(0, 5)) assert.ok(!result.includes(name), name);
+  assert.match(result, /\+50%[^\n]+Larger gain[\s\S]+\+10%[^\n]+Boundary gainer/);
+  assert.match(
+    result,
+    /−97\.5%[^\n]+Major collapse[\s\S]+−10%[^\n]+Boundary loser/,
+  );
+
+  const override = configure(
+    {
+      daily_report: {
+        categories: c.daily_report.categories,
+        mover_thresholds: { socketable: { min_change_divine: 0.02 } },
+      },
+      sources: c.sources,
+    },
+    {},
+  );
+  assert.equal(
+    override.daily_report.mover_thresholds.socketable.min_change_percent,
+    10,
+  );
+  assert.deepEqual(override.daily_report.mover_thresholds.uniques, {
+    min_change_divine: 0.1,
+    min_change_percent: 10,
+  });
+  assert.match(movement(override), /\+2140%[^\n]+Cheap jump/);
+  assert.doesNotMatch(movement(override), /Small percentage/);
+  assert.equal(expensive(override), expensive(c));
+  assert.match(expensive(c), /Small percentage/);
 });
 
 test("category icons, human names and accent colors are distinct and consistent across report and alert cards", () => {

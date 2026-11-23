@@ -7,6 +7,7 @@ export interface Rule {
   id: string;
   group: Group | null;
 }
+const defaultMoverThresholds = { min_change_divine: 0.1, min_change_percent: 10 };
 export const defaults = {
   retention: { enabled: false, days: 3 },
   league: "auto",
@@ -20,6 +21,12 @@ export const defaults = {
     top_movers: 5,
     top_expensive: 10,
     categories: [...groups] as Group[],
+    mover_thresholds: {
+      socketable: { ...defaultMoverThresholds },
+      lineage_supports: { ...defaultMoverThresholds },
+      crafting: { ...defaultMoverThresholds },
+      uniques: { ...defaultMoverThresholds },
+    },
   },
   currency: { top_by_volume: 10, excluded_ids: ["transmute", "aug"] },
   liquidity: {
