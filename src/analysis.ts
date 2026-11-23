@@ -1,5 +1,5 @@
 import type { Config } from "./config.js";
-import { baseline, change, current, coverage, usable } from "./market.js";
+import { baseline, change, current, coverage, usableForAlerts } from "./market.js";
 import { groups, HOUR } from "./model.js";
 import type { AlertMemory, History, Signal, State } from "./model.js";
 export function percentile(values: number[], v: number): number {
@@ -33,10 +33,12 @@ export function signals(
   now: number,
 ): Signal[] {
   const enabledCategories = new Set(c.alerts.categories);
-  const items = current(h, c, now).filter((o) => o.group !== "currency");
+  const items = current(h, c, now, usableForAlerts).filter(
+    (o) => o.group !== "currency",
+  );
   const out: Signal[] = [];
   const touched = new Set<string>();
-  if (!c.alerts.enabled || !usable(h.sources["Currency"], c, now)) {
+  if (!c.alerts.enabled || !usableForAlerts(h.sources["Currency"], c, now)) {
     for (const m of Object.values(s.memory)) delete m.pending;
     return [];
   }
@@ -97,7 +99,7 @@ export function signals(
     if (!enabledCategories.has(g)) continue;
     const complete = coverage(c, g)
       .filter((x) => !c.sources.disabled.includes(x))
-      .every((x) => usable(h.sources[x], c, now));
+      .every((x) => usableForAlerts(h.sources[x], c, now));
     const comparable = items
       .filter((o) => o.group === g)
       .flatMap((o) => {

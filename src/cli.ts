@@ -6,7 +6,7 @@ import { post } from "./delivery.js";
 import { demo } from "./demo.js";
 import { showcase, sendShowcase } from "./showcase.js";
 import { report } from "./format.js";
-import { activeSources, coverage, usable } from "./market.js";
+import { activeSources, coverage, recentRetrieval } from "./market.js";
 import { emptyHistory, groups } from "./model.js";
 import { run } from "./runtime.js";
 import { loadHistory, loadState } from "./storage.js";
@@ -129,7 +129,7 @@ export async function main(
     output(JSON.stringify(report(h, c, Date.now()), null, 2));
     return;
   }
-  if (!usable(h.sources["Currency"], c, Date.now()))
+  if (!recentRetrieval(h.sources["Currency"], c, Date.now()))
     throw Error(
       "Stored Currency data is missing/stale; wait for a successful refresh",
     );

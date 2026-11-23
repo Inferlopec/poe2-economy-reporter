@@ -4,7 +4,6 @@ import {
   classify,
   ingest,
   observationEpoch,
-  usable,
 } from "./market.js";
 import type { Config } from "./config.js";
 import { record, stash } from "./model.js";
@@ -76,19 +75,17 @@ export async function refresh(
         ) * 1000;
       const nextFetch = now + cache;
       if (r.status === 304) {
-        if (!old) throw Error("304 without cached content");
+        if (!old?.fingerprint) throw Error("304 without cached content");
         old.at = now;
         old.nextFetch = nextFetch;
         delete old.error;
-        if (usable(old, c, now)) {
-          old.observations = old.observations.map((o) => ({
-            ...o,
-            at: now,
-            group: classify(source, o.id, c),
-            epoch: observationEpoch(c, source, o.id),
-          }));
-          h.observations.push(...old.observations);
-        }
+        old.observations = old.observations.map((o) => ({
+          ...o,
+          at: now,
+          group: classify(source, o.id, c),
+          epoch: observationEpoch(c, source, o.id),
+        }));
+        h.observations.push(...old.observations);
       } else if (r.ok)
         ingest(
           h,

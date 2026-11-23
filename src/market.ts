@@ -99,6 +99,13 @@ export function activeSources(c: Config): string[] {
     ]),
   ].filter((s) => !c.sources.disabled.includes(s));
 }
+export function reportSources(c: Config): string[] {
+  const required = [
+    "Currency",
+    ...c.daily_report.categories.flatMap((g) => coverage(c, g)),
+  ];
+  return [...new Set(required)].filter((s) => !c.sources.disabled.includes(s));
+}
 export function threshold(o: Observation, c: Config): number {
   return o.group === "boss_fragments"
     ? c.liquidity.boss_fragments_min_volume_divine
@@ -115,7 +122,7 @@ export function eligible(o: Observation, c: Config): boolean {
     o.activity >= threshold(o, c)
   );
 }
-export function usable(
+export function recentRetrieval(
   s: SourceState | undefined,
   c: Config,
   now: number,
@@ -124,7 +131,17 @@ export function usable(
     !!s &&
     !s.error &&
     now >= s.at &&
-    now - s.at <= c.freshness.max_unchanged_hours * HOUR &&
+    now - s.at <= c.freshness.max_unchanged_hours * HOUR
+  );
+}
+export function usableForAlerts(
+  s: SourceState | undefined,
+  c: Config,
+  now: number,
+): boolean {
+  return (
+    !!s &&
+    recentRetrieval(s, c, now) &&
     now - s.changed <= c.freshness.max_unchanged_hours * HOUR
   );
 }
@@ -239,15 +256,20 @@ export function ingest(
     nextFetch,
     observations,
   };
-  if (usable(h.sources[source], c, at)) h.observations.push(...observations);
+  h.observations.push(...observations);
   h.observations = h.observations.filter((o) => at - o.at <= 7 * 24 * HOUR);
 }
-export function current(h: History, c: Config, now: number): Observation[] {
+export function current(
+  h: History,
+  c: Config,
+  now: number,
+  isUsable = recentRetrieval,
+): Observation[] {
   const found = new Map<string, Observation>();
   for (const s of Object.keys(h.sources).sort((a, b) =>
     a === "Currency" ? -1 : b === "Currency" ? 1 : a.localeCompare(b),
   )) {
-    if (c.sources.disabled.includes(s) || !usable(h.sources[s], c, now))
+    if (c.sources.disabled.includes(s) || !isUsable(h.sources[s], c, now))
       continue;
     for (const raw of h.sources[s]!.observations) {
       const o = { ...raw, group: classify(raw.source, raw.id, c) };

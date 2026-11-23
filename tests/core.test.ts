@@ -15,7 +15,8 @@ import {
   epoch,
   ingest,
   normalize,
-  usable,
+  recentRetrieval,
+  usableForAlerts,
 } from "../dist/market.js";
 import { discover, refresh } from "../dist/api.js";
 import { percentile, reserveSignals, signals } from "../dist/analysis.js";
@@ -245,8 +246,10 @@ test("freshness ignores order, metadata and ETag changes", () => {
   ingest(h, "Runes", raw(), now, c, "a");
   ingest(h, "Runes", { ...raw(), irrelevant: "changed" }, now + HOUR, c, "b");
   assert.equal(h.sources.Runes!.changed, now);
-  assert.ok(usable(h.sources.Runes, c, now + 2 * HOUR));
-  assert.ok(!usable(h.sources.Runes, c, now + 2 * HOUR + 1));
+  assert.ok(usableForAlerts(h.sources.Runes, c, now + 2 * HOUR));
+  assert.ok(!usableForAlerts(h.sources.Runes, c, now + 2 * HOUR + 1));
+  assert.ok(recentRetrieval(h.sources.Runes, c, now + 3 * HOUR));
+  assert.ok(!recentRetrieval(h.sources.Runes, c, now + 3 * HOUR + 1));
 });
 test("304 advances retrieval, not content evidence or content freshness", async () => {
   const x = configure(
@@ -255,15 +258,96 @@ test("304 advances retrieval, not content evidence or content freshness", async 
   );
   const h = emptyHistory("L");
   ingest(h, "Currency", raw(1, 100, "divine"), now, x, "e");
+  const evidence = h.sources.Currency!.observations[0]!.evidence;
   await refresh(
     h,
     x,
-    now + HOUR,
+    now + 24 * HOUR,
     fetcher(() => new Response(null, { status: 304 })),
   );
   assert.equal(h.sources.Currency!.changed, now);
-  assert.equal(h.sources.Currency!.at, now + HOUR);
-  assert.equal(h.sources.Currency!.observations[0]!.at, now + HOUR);
+  assert.equal(h.sources.Currency!.at, now + 24 * HOUR);
+  assert.equal(h.sources.Currency!.observations[0]!.at, now + 24 * HOUR);
+  assert.equal(h.sources.Currency!.observations[0]!.evidence, evidence);
+  assert.equal(h.observations.length, 2);
+  assert.ok(recentRetrieval(h.sources.Currency, x, now + 24 * HOUR));
+  assert.ok(!usableForAlerts(h.sources.Currency, x, now + 24 * HOUR));
+});
+test("daily report uses unchanged Unique data and expires by retrieval age", async () => {
+  const source = "UniqueAccessories";
+  const x = configure(
+    {
+      daily_report: { categories: ["uniques"] },
+      sources: {
+        disabled: activeSources(c).filter((s) => s !== "Currency" && s !== source),
+      },
+    },
+    {},
+  );
+  const h = emptyHistory("L");
+  const currency = await fixture("Currency");
+  const uniques = await fixture(source);
+  const first = now - 25 * HOUR;
+  ingest(h, "Currency", currency, first, x);
+  ingest(h, source, uniques, first, x, "unique");
+  for (let at = first + HOUR; at <= now; at += HOUR) {
+    const errors = await refresh(
+      h,
+      x,
+      at,
+      fetcher((url: string) => {
+        const type = new URL(url).searchParams.get("type");
+        if (type === "Currency") {
+          return Response.json(currency, {
+            headers: at === now - HOUR ? { "cache-control": "max-age=7200" } : {},
+          });
+        }
+        return at === now
+          ? new Response(null, { status: 304 })
+          : Response.json(uniques, { headers: { etag: "unique" } });
+      }),
+    );
+    assert.deepEqual(errors, []);
+  }
+  assert.equal(h.sources[source]!.changed, first);
+  const currentUnique = current(h, x, now).find((o) => o.name === "Mageblood")!;
+  assert.equal(currentUnique.at, now);
+  assert.equal(baseline(currentUnique, h, 24, x)?.at, now - 24 * HOUR);
+  assert.ok(!current(h, x, now, usableForAlerts).some((o) => o.source === source));
+
+  const s = emptyState();
+  await scheduled(h, x, s, now, async () => {});
+  assert.equal(s.reports.length, 1);
+  const scheduledReport = s.reports[0]!;
+  assert.equal(scheduledReport.expires, now + HOUR);
+  const output = JSON.stringify(scheduledReport.parts);
+  assert.match(output, /Mageblood/);
+  assert.doesNotMatch(output, /STALE \/ INCOMPLETE/);
+  await scheduled(h, x, s, scheduledReport.expires + 1, async () => {}, false);
+  assert.ok(scheduledReport.parts.every((p) => p.status === "canceled"));
+
+  const failureAt = now + HOUR / 2;
+  const errors = await refresh(
+    h, x, failureAt, fetcher(() => new Response(null, { status: 503 })),
+  );
+  assert.equal(errors.length, 1);
+  assert.equal(h.sources[source]!.at, now);
+  const afterFailure = emptyState();
+  await scheduled(h, x, afterFailure, failureAt, async () => {});
+  assert.equal(afterFailure.reports.length, 0);
+});
+test("304 cannot turn a rate-limit placeholder into a fresh source", async () => {
+  const x = configure(
+    { sources: { disabled: activeSources(c).filter((s) => s !== "Currency") } },
+    {},
+  );
+  const h = emptyHistory("L");
+  await refresh(h, x, now, fetcher(() => new Response(null, { status: 429 })));
+  const errors = await refresh(
+    h, x, now + HOUR, fetcher(() => new Response(null, { status: 304 })),
+  );
+  assert.equal(errors.length, 1);
+  assert.ok(!recentRetrieval(h.sources.Currency, x, now + HOUR));
 });
 test("failures do not extend freshness, disabled sources never fetched", async () => {
   const x = configure(
@@ -285,7 +369,7 @@ test("failures do not extend freshness, disabled sources never fetched", async (
   assert.equal(calls, 1);
   assert.equal(e.length, 1);
   assert.equal(h.sources.Currency!.at, now);
-  assert.ok(!usable(h.sources.Currency, x, now));
+  assert.ok(!recentRetrieval(h.sources.Currency, x, now));
 });
 test("league discovery fallback and first failure", async () => {
   assert.equal(

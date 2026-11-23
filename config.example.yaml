@@ -27,6 +27,7 @@ classification:
   overrides: []
 
 freshness:
+  # Maximum retrieval age for reports and alerts, and maximum content age for alerts.
   max_unchanged_hours: 2
 
 daily_report:

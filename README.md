@@ -138,7 +138,7 @@ The suite bypasses production YAML, reads/writes no production history or delive
 
 ## Freshness and recovery
 
-poe.ninja does not expose a verified generation timestamp. The service tracks successful retrieval and meaningful content changes separately. Identical content and `304` do not refresh the content-change clock or confirm alerts. Both clocks must be within two hours by default. This conservative assumption can suppress genuinely unchanged markets. Output says `Observed at`; observations are not an atomic upstream snapshot.
+poe.ninja does not expose a verified generation timestamp. Reports require a successful retrieval within the last two hours by default, including an unchanged response or a `304` with cached data. Alerts also require a recent content change and distinct evidence for each confirmation. Output says `Observed at` and shows the local observation times.
 
 Exchange activity is `Trading volume` normalized to Div, with an unverified time window. Unique activity is active listings, not completed sales. Thresholds apply at both comparison endpoints; short rankings are expected. Missing history is `—`, never zero.
 

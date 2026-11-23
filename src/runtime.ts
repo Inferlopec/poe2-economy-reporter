@@ -4,7 +4,14 @@ import { discover, refresh } from "./api.js";
 import { reserveSignals, signals } from "./analysis.js";
 import { deliver } from "./delivery.js";
 import { alertPayload, complete, report } from "./format.js";
-import { activeSources, coverage, current, epoch, usable } from "./market.js";
+import {
+  activeSources,
+  coverage,
+  current,
+  epoch,
+  reportSources,
+  usableForAlerts,
+} from "./market.js";
 import { HOUR } from "./model.js";
 import type { History, State } from "./model.js";
 import {
@@ -99,15 +106,8 @@ export async function scheduled(
       league: h.league,
       epoch: epoch(c),
       expires: Math.min(
-        ...[
-          "Currency",
-          ...c.daily_report.categories
-            .flatMap((g) => coverage(c, g))
-            .filter((x) => !c.sources.disabled.includes(x)),
-        ].map(
-          (x) =>
-            Math.min(h.sources[x]!.at, h.sources[x]!.changed) +
-            c.freshness.max_unchanged_hours * HOUR,
+        ...reportSources(c).map(
+          (x) => h.sources[x]!.at + c.freshness.max_unchanged_hours * HOUR,
         ),
       ),
       parts: report(h, c, now).map((payload) => ({
@@ -133,7 +133,7 @@ export async function scheduled(
       ].slice(0, c.alerts.max_items_per_message + 1);
     if (!selected.length) selected = candidates.slice(0, 1);
     let payload;
-    const exalted = current(h, c, now).find(
+    const exalted = current(h, c, now, usableForAlerts).find(
       (o) => o.source === "Currency" && o.id === "exalted",
     );
     while (selected.length) {

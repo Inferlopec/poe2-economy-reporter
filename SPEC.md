@@ -52,14 +52,14 @@ All config edits require restart, not an image rebuild. Known-source item additi
 - Calculate item changes with unrounded Div values. Display prices at least 1 Div in Div, otherwise Ex using a valid Currency rate from the current fetch cycle. Currency-pair changes compare the pair itself: Divine/Exalted is Ex per Div, Chaos/Exalted is Ex per Chaos, Mirror/Divine is Div per Mirror.
 - Compare to the closest distinct valid observation near the 6h/24h horizon, maximum one-hour deviation; on an equal-distance tie prefer the earlier baseline. Require finite positive prices, valid conversions and qualifying activity at both endpoints. Missing history is unavailable, never zero. Missing items do not have zero prices.
 
-## Accepted conservative freshness policy
+## Retrieval freshness and alert confirmations
 
 The reviewed overview responses expose no source generation timestamp. HTTP `Date` is response time; sparklines are not dated observations suitable for these horizons. Freshness is an estimate, not proof the upstream producer is current.
 
 - Track successful retrieval time, ETag, deterministic fingerprint of meaningful pricing/activity/conversion content, and time that content was first observed to change. Exclude ordering, images and descriptive metadata from the fingerprint. An ETag change alone is insufficient.
-- The first valid response starts a provisional freshness interval. Identical content and `304` do not advance last-change time or count as distinct alert confirmations. Repeated observations can record an unchanged price for local history while the source remains usable; never invent a new source snapshot.
-- A source is usable only while both its last successful retrieval and last observed content change are at most `freshness.max_unchanged_hours` old (default 2). Failures extend neither clock.
-- This intentionally may suppress valid unchanged quiet-market data. The two-hour limit is an accepted configurable operational assumption, not an upstream guarantee.
+- A valid response or a `304` with cached valid data advances the retrieval clock and can record an unchanged price in local history. Identical content and `304` leave the last-change time and alert evidence intact.
+- For reporting, a source is usable if its last successful retrieval is at most `freshness.max_unchanged_hours` old (default 2) and its latest fetch attempt succeeded. Scheduled report parts expire at the earliest retrieval deadline of the sources used to build the report.
+- Alert evaluation retains the additional requirement that the last observed content change be within the same window. The first valid response starts this content window. Failures advance neither clock.
 - Save successful sources independently; do not present a fetch cycle as an atomic upstream snapshot. Label output `Observed at`, using a time range when observations differ.
 - Suppress affected stale/incomplete group alerts. Publish a daily report only when Currency and all non-disabled required sources for enabled sections are usable; disclose deliberate coverage reductions. Defer after failure rather than substitute stale cached data or automatically omit a source. Valid short/empty rankings after filtering are different from failed/incomplete sources.
 - Two confirmations need distinct relevant fresh source contents, not repeated GETs. Group confirmation requires updated evidence for the items counted toward its qualifying movement, not merely an unrelated source changing.

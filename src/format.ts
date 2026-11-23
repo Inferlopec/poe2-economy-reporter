@@ -1,5 +1,12 @@
 import type { Config } from "./config.js";
-import { baseline, change, current, coverage, usable } from "./market.js";
+import {
+  baseline,
+  change,
+  current,
+  coverage,
+  recentRetrieval,
+  reportSources,
+} from "./market.js";
 import { groups, positive } from "./model.js";
 import type {
   Card,
@@ -165,12 +172,7 @@ export function omissions(c: Config, g?: (typeof groups)[number]): string {
     : "";
 }
 export function complete(h: History, c: Config, now: number): boolean {
-  return [
-    "Currency",
-    ...c.daily_report.categories.flatMap((g) => coverage(c, g)),
-  ]
-    .filter((s) => !c.sources.disabled.includes(s))
-    .every((s) => usable(h.sources[s], c, now));
+  return reportSources(c).every((s) => recentRetrieval(h.sources[s], c, now));
 }
 export function currencyCard(h: History, c: Config, now: number): Card {
   const items = current(h, c, now).filter((o) => o.source === "Currency");
@@ -231,7 +233,7 @@ export function report(
 ): Payload[] {
   const obs = current(h, c, now);
   const times = Object.values(h.sources)
-    .filter((s) => usable(s, c, now))
+    .filter((s) => recentRetrieval(s, c, now))
     .map((s) => s.at);
   const time = times.length
     ? `${new Date(Math.min(...times)).toISOString()} – ${new Date(Math.max(...times)).toISOString()}`
