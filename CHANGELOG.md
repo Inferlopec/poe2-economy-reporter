@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.1
+
+- Daily reports use the age of the last successful retrieval to decide whether data is fresh. Unchanged market data and valid HTTP 304 responses can keep the report current. Alerts still require a recent content change and distinct confirmations. ([#1](https://github.com/Inferlopec/poe2-economy-reporter/issues/1))
+- Daily gainers and losers must meet two movement thresholds, 0.1 Div and 10% by default. Each category's thresholds are configurable under `daily_report.mover_thresholds`. ([#2](https://github.com/Inferlopec/poe2-economy-reporter/issues/2))
+
+### Upgrade from 0.3.0
+
+Change the image tag in your existing `compose.yaml` to `0.3.1`, run `docker compose pull`, then `docker compose up -d`. Keep your existing data volume and configuration. The new mover thresholds apply automatically unless overridden in YAML.
+
 ## 0.3.0 — 2026-11-19
 
 - Add optional automatic retention for scheduled reports, alerts and manual currency reports, disabled by default with a three-day lifetime.
